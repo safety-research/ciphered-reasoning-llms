@@ -66,7 +66,13 @@ def run_eval_orchestrator_remote(
     def transform_func(s):
         for key in d_transformed_params:
             if key in s:
-                s = s.replace(key, d_transformed_params[key])
+                value = d_transformed_params[key]
+                if type(value) is str:
+                    s = s.replace(key, value)
+                elif type(value) is int or type(value) is float:
+                    s = value
+                else:
+                    raise ValueError(f"Invalid type for {key} value: {type(value)}")
         return s
 
     config = transform_strings(config, transform_func)

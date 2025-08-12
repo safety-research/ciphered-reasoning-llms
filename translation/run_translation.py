@@ -26,7 +26,40 @@ def generate_ground_truth_translation(config):
     df.to_parquet(target_path)
 
 
-@ray.remote(num_cpus=1, num_gpus=4)
+@ray.remote(num_cpus=1)
+def generate_fewshot_prompt(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+
+    experiment_hash = compute_experiment_hash(config)
+
+    target_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    df = pd.read_parquet(target_path)
+
+    df['len'] = df['translated_text'].map(len)
+    df_sample_group = df.sort_values('len').head(100)
+    df = df.drop(columns=['len'])
+
+    n_few_shot_examples = config["experiment"]["experiment_params"].get("n_few_shot_examples", 0)
+
+    l_few_shot_examples = []
+
+    for i, row in df.iterrows():
+        df_sample = df_sample_group[df_sample_group['translated_text'] != row['translated_text']]
+        df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
+
+        s = "\n"
+        for j, sample_row in df_sample.iterrows():
+            s += f"Example {j + 1}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}" + "\n"
+
+        l_few_shot_examples.append(s)
+
+    df['few_shot_examples'] = l_few_shot_examples
+    df.to_parquet(target_path)
+
+
+@ray.remote(num_cpus=1, num_gpus=4, retry_exceptions=True)
 def generate_prompted_translation(config):
     from vllm import LLM, SamplingParams
 
@@ -45,7 +78,6 @@ def generate_prompted_translation(config):
     # Build the prompt
     translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
 
-    # TODO(sguo35): few shot exemplars
 
     n_skipped = 0
 
@@ -57,12 +89,16 @@ def generate_prompted_translation(config):
 
         assert len(row['translated_text']) < 32000
 
+        row_translation_prompt = translation_prompt
+        if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+            row_translation_prompt += "\n" + row['few_shot_examples']
+
         l_inputs.append(
             {
                 "reference_text": row["reference_text"],
                 "gt_translation": row["translated_text"],
                 "prompt": [
-                    {"role": "system", "content": translation_prompt},
+                    {"role": "system", "content": row_translation_prompt},
                     {
                         "role": "user",
                         "content": f"Modify the following text according to the provided scheme:\n\n{row['reference_text']}",
@@ -74,10 +110,10 @@ def generate_prompted_translation(config):
     print(f"Skipped {n_skipped} rows because they were too long.")
 
     # Generate the outputs
-    llm = LLM(model=config["experiment"]["experiment_params"]["model"], enforce_eager=True, tensor_parallel_size=4, max_num_batched_tokens=65536, gpu_memory_utilization=0.8)
+    llm = LLM(model=sampling_model, enforce_eager=True, tensor_parallel_size=4, gpu_memory_utilization=0.7)
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
-        max_tokens=512,
+        max_tokens=12000,
         n=config["experiment"]["experiment_params"]["sampling_params"]["n"],
     )
 

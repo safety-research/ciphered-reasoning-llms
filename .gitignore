@@ -28,3 +28,4 @@ SECRETS
 exp
 .env
 __pycache__/
+output
