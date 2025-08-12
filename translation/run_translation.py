@@ -116,7 +116,7 @@ def generate_prompted_translation(config):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for translation instead...")
 
-    llm = LLM(model=sampling_model, enforce_eager=True, tensor_parallel_size=4, gpu_memory_utilization=0.7)
+    llm = LLM(model=sampling_model, enforce_eager=True, tensor_parallel_size=4, gpu_memory_utilization=0.7, rope_scaling={"rope_type":"yarn","factor":4.0,"original_max_position_embeddings":32768}, max_model_len=131072)
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
         max_tokens=12000,
