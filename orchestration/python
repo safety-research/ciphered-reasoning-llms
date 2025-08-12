@@ -1,0 +1,7 @@
+#!/bin/bash
+source ~/.env_anthropic
+source ~/sky_workdir/anthropic/bin/activate
+
+cd ~/sky_workdir/encoding-schemes
+
+python "$@"

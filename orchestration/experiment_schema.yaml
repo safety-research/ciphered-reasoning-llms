@@ -1,0 +1,24 @@
+experiment:
+  table_name: encoding_schemes
+
+  experiment_name: test
+
+  experiment_params:
+    epochs: 10
+
+  experiment_tags:
+    - test
+
+stages:
+  - name: train
+    executor:
+      path: train.py
+      function_name: train
+      function_kwargs:
+        epochs: 10
+  - name: evaluate
+    executor:
+      path: evaluate.py
+      function_name: evaluate
+      function_kwargs:
+        epochs: 10

@@ -1,0 +1,2 @@
+env_vars:
+  PATH: /root/sky_workdir/encoding-schemes/orchestration:$PATH

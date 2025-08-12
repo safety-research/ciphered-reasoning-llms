@@ -1,0 +1,37 @@
+experiment:
+  table_name: encoding_schemes
+
+  experiment_name: translation_prompted_${encoding_scheme_name}_${model_name}
+
+  experiment_params:
+    model: ${model_name}
+    encoding_scheme: ${encoding_scheme_name}
+
+    dataset: designing_data_intensive_applications
+
+    sampling_params:
+      temperature: 1.0
+      n: 8
+
+    translation_prompt: ${encoding_scheme_name}
+
+  experiment_tags:
+
+stages:
+  - name: generate_dataset
+    executor:
+      path: translation/run_translation.py
+      function_name: generate_ground_truth_translation
+      function_kwargs: {}
+
+  - name: generate_prompted_translation
+    executor:
+      path: translation/run_translation.py
+      function_name: generate_prompted_translation
+      function_kwargs: {}
+
+  - name: evaluate_bleu_score
+    executor:
+      path: evaluation/metrics/translation.py
+      function_name: evaluate_bleu_score
+      function_kwargs: {}

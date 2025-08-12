@@ -1,0 +1,36 @@
+#  sky launch -c jeff-cotdecomp-8xh100 jeff-experiments/infra/base_job.yaml  --down
+resources:
+  cloud: runpod
+  accelerators: H200:4
+  region: US
+  disk_size: 4000
+  image_id: runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
+
+file_mounts:
+  ~/.ssh/id_rsa: ~/.ssh/id_rsa
+  ~/.ssh/config: ~/.ssh/config
+  ~/.netrc: ~/.netrc
+  ~/.cache/huggingface/token: ~/.cache/huggingface/token
+  ~/sky_workdir/verl: ~/verl
+  ~/sky_workdir/cot-decomp: ~/cot-decomp
+  ~/sky_workdir/encoding-schemes: ~/encoding-schemes
+  ~/.env_anthropic: ~/.env_anthropic
+
+setup: |
+  set -e
+  echo "Running setup."
+  chown -R $USER ~/.ssh
+  chmod -R 700 ~/.ssh
+  ~/sky_workdir/encoding-schemes/orchestration/base_setup.sh
+
+envs:
+  EXPERIMENT_YAML: experiments/20250811/translation_prompted.yaml
+
+run: |
+  set -e
+
+  source ~/.env_anthropic && source ~/sky_workdir/anthropic/bin/activate
+
+# ray start --port 9265 --dashboard-port 9269 --head
+# cd ~/sky_workdir/encoding-schemes
+# ray job submit --runtime-env orchestration/ray_runtime_env.yaml -- python orchestration/experiment_runner.py --config ${EXPERIMENT_YAML}
