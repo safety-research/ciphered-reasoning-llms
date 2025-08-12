@@ -1,0 +1,62 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: translation_sft_letter_to_word_with_dot #${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: Qwen/Qwen2.5-14B-Instruct #${model_id}
+    encoding_scheme: letter_to_word_with_dot #${encoding_scheme}
+
+    dataset: prm800k_cot
+    validation_set_frac: 0.2
+
+    sampling_params:
+      temperature: 1.0
+      n: 8
+
+    sft_params:
+      batch_size: 64
+      learning_rate: 2e-6
+      clip_grad: 1.0
+      num_epochs: 1
+      weight_decay: 0.0
+
+    translation_prompt: letter_to_word_with_dot #${encoding_scheme}
+
+    use_sft_model_for_sampling: True
+
+  experiment_tags:
+    sft: True
+
+
+stages:
+  - name: generate_ground_truth_translation
+    executor:
+      path: translation/run_translation.py
+      function_name: generate_ground_truth_translation
+      function_kwargs: {}
+
+  - name: generate_sft_dataset
+    executor:
+      path: translation/run_translation.py
+      function_name: generate_sft_dataset
+      function_kwargs: {}
+
+  - name: sft_model
+    executor:
+      path: sft/sft_runner.py
+      function_name: sft_model
+      function_kwargs: {}
+
+  - name: generate_prompted_translation
+    executor:
+      path: translation/run_translation.py
+      function_name: generate_prompted_translation
+      function_kwargs: {}
+
+  - name: evaluate_bleu_score
+    executor:
+      path: evaluation/metrics/translation.py
+      function_name: evaluate_bleu_score
+      function_kwargs: {}

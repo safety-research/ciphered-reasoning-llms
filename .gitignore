@@ -29,3 +29,4 @@ exp
 .env
 __pycache__/
 output
+outputs
