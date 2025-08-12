@@ -110,6 +110,12 @@ def generate_prompted_translation(config):
     print(f"Skipped {n_skipped} rows because they were too long.")
 
     # Generate the outputs
+
+    sampling_model = config["experiment"]["experiment_params"]["model"]
+    if config["experiment"]["experiment_params"].get("use_sft_model_for_sampling", False):
+        sampling_model = f"output/{experiment_hash}/sft_model/last"
+        print(f"Using SFT model {sampling_model} for translation instead...")
+
     llm = LLM(model=sampling_model, enforce_eager=True, tensor_parallel_size=4, gpu_memory_utilization=0.7)
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
