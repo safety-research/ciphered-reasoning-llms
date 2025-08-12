@@ -20,61 +20,62 @@ def load_params(json_path: str) -> Dict[str, List[Any]]:
         return json.load(f)
 
 
-def save_grid(grid: List[Dict[str, Any]], output_path: str):
-    """Save the parameter grid to a JSON file."""
-    with open(output_path, "w") as f:
-        json.dump(grid, f, indent=2)
-    print(f"\nSaved parameter grid to {output_path}")
-
-
-def parse_hash_from_output(output: str) -> Optional[str]:
-    """Parse hash from eval_orchestrator.py output.
-
-    Looks for pattern <hash>HASH_HERE</hash> in the output.
-    Returns None if no hash is found.
-    """
-    match = re.search(r"<hash>(.*?)</hash>", output)
-    return match.group(1) if match else None
-
-
 @ray.remote
 def run_eval_orchestrator_remote(
-    params: Dict[str, Any], eval_script: str = "eval_orchestrator.py", dry_run: bool = False
+    params: Dict[str, Any], eval_script: str, dry_run: bool = False
 ) -> Tuple[str, Optional[str]]:
     """Remote function to run eval_orchestrator.py with the given parameters.
 
     Returns:
         Tuple of (command output, hash value if found)
     """
-    sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-    # TODO(sguo35): replace this function
-    # TODO(sguo35): read the target yaml and recursively replace any params that are in the json grid
-    # TODO(sguo35): connect to central ray cluster
+    import yaml
+    from orchestration.experiment_runner import execute_pipeline_remote
+
+    with open(eval_script, "r") as fp:
+        config = yaml.safe_load(fp)
+
+    def transform_strings(obj, func):
+        """
+        Recursively traverse a nested structure and apply `func` to any string values.
+
+        Args:
+            obj: The object to traverse (can be dict, list, tuple, set, or any type).
+            func: A function that takes a string and returns a string.
+
+        Returns:
+            A new object with the transformation applied to all strings.
+        """
+        if isinstance(obj, dict):
+            # Recursively process each key-value pair
+            return {key: transform_strings(value, func) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            # Process list elements
+            return [transform_strings(item, func) for item in obj]
+        elif isinstance(obj, str):
+            # Apply the transformation function to strings
+            return func(obj)
+        else:
+            # Leave other types unchanged
+            return obj
+
+    d_transformed_params = {f"${{{param_name}}}" : param_value for param_name, param_value in params.items()}
+
+    def transform_func(s):
+        for key in d_transformed_params:
+            if key in s:
+                s = s.replace(key, d_transformed_params[key])
+        return s
+
+    config = transform_strings(config, transform_func)
+
     # TOOO(sguo35): request CPU & GPU & sonnet resources
-    from evaluation.orchestration.eval_orchestrator import main as eval_orchestrator_main, get_argparser
-
-    cmd = []
-    for key, value in params.items():
-        if len(str(value)) == 0:
-            continue
-
-        if value == 0:
-            continue
-
-        l_args = [f"--{key}"]
-        if value != 1:
-            l_args.append(str(value))
-        cmd.extend(l_args)
-
-    print(f"Running command: {' '.join(cmd)}")
     if dry_run:
-        return None, None
-
-    parser = get_argparser()
-    args = parser.parse_args(cmd)
-    hash_value = asyncio.run(eval_orchestrator_main(args))
-    return "", hash_value
+        print(f"Running {config}")
+    else:
+        ray.get(execute_pipeline_remote.remote(config))
 
 
 def generate_param_combinations(
@@ -193,9 +194,7 @@ def main():
         help="Parameters to zip together, separated by |. Each group is space-separated. "
         "Example: 'a b|c d' will zip a with b and c with d",
     )
-    parser.add_argument("--eval-script", default="eval_orchestrator.py", help="Path to eval_orchestrator.py")
-    parser.add_argument("--output", help="Path to save the generated parameter grid as JSON")
-    parser.add_argument("--num-cpus", type=int, help="Number of CPUs to use for parallel execution")
+    parser.add_argument("--eval-script", help="Path to experiment yaml", required=True)
     parser.add_argument("--dry-run", action="store_true", help="Dry run the script")
     args = parser.parse_args()
 
@@ -203,7 +202,7 @@ def main():
         os.environ["GLOG_logtostderr"] = "1"
 
     # Initialize Ray
-    ray.init(num_cpus=args.num_cpus if args.num_cpus else None)
+    ray.init()
 
     try:
         # Load parameters
@@ -229,16 +228,7 @@ def main():
 
         # Collect results
         for combo, future in futures:
-            output, hash_value = ray.get(future)
-            if hash_value:
-                combo["hash"] = hash_value
-                print(f"Found hash: {hash_value}")
-            else:
-                print("Warning: No hash found in output")
-
-        # Save grid if output path is specified
-        if args.output and not args.dry_run:
-            save_grid(combinations, args.output)
+            ray.get(future)
 
     finally:
         # Shutdown Ray

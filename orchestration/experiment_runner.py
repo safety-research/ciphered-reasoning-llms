@@ -6,7 +6,7 @@ import ray
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from orchestration.experiment_meta_saver import save_experiment_meta
+from orchestration.experiment_meta_saver import save_experiment_meta, init_experiment_meta_dict
 
 
 def load_config(config_file):
@@ -39,41 +39,50 @@ def load_stage_executor(stage_config):
         raise AttributeError(f"Function '{function_name}' not found in '{file_path}'.")
 
     print(f"using function '{function_name}' from '{file_path}'")
-    raw_fn = getattr(module, function_name)
-
-    function_kwargs = dict(executor_config.get("function_kwargs", {}))
-
-    def wrapped_fn(*args, **kwargs):
-        return raw_fn(*args, **kwargs, **function_kwargs)
-
-    return wrapped_fn
+    return getattr(module, function_name)
 
 
 def load_experiment_steps(config):
     l_stages = []
-    l_stage_kwargs = []
+
+    l_stages.append({
+        'executor': init_experiment_meta_dict,
+        'kwargs': {},
+        'name': 'init_experiment_meta_dict'
+    })
 
     for stage in config["stages"]:
-        l_stages.append(load_stage_executor(stage))
-        l_stage_kwargs.append(config["executor"]["function_kwargs"])
+        l_stages.append({
+            'executor': load_stage_executor(stage),
+            'kwargs': stage["executor"]["function_kwargs"],
+            'name': stage['name']
+        })
 
-    l_stages.append(save_experiment_meta)
-    l_stage_kwargs.append({})
+    l_stages.append({
+        'executor': save_experiment_meta,
+        'kwargs': {},
+        'name': 'save_experiment_meta'
+    })
 
-    return l_stages, l_stage_kwargs
+    return l_stages
 
 
-def execute_pipeline(args):
-    config = load_config(args.config)
-    l_stages, l_stage_kwargs = load_experiment_steps(config)
+def execute_pipeline(config):
+    print(f"Executing config \n {config}")
 
-    for stage, stage_kwargs in zip(l_stages, l_stage_kwargs):
-        ray.get(stage.remote(config, **stage_kwargs))
+    l_stages = load_experiment_steps(config)
 
+    for stage in l_stages:
+        print(f"Running {stage['name']}")
+        ray.get(stage['executor'].remote(config, **stage['kwargs']))
+        print(f"Done with {stage['name']}")
+
+
+# TODO(sguo35): add checkpointing logic so we skip completed steps + overwrite functionality
 
 @ray.remote
-def execute_pipeline_remote(args):
-    execute_pipeline(args)
+def execute_pipeline_remote(config):
+    execute_pipeline(config)
 
 
 if __name__ == "__main__":
@@ -85,4 +94,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    execute_pipeline(args)
+    config = load_config(args.config)
+    execute_pipeline(config)

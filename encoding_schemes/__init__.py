@@ -3,12 +3,16 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from encoding_schemes.letter_substitutions import letter_to_word_with_dot
+from encoding_schemes.letter_substitutions import letter_to_word_with_dot, dot_between_chars
 
 
 def get_encoding_scheme(encoding_scheme_name):
 
     if encoding_scheme_name == "letter_to_word_with_dot":
         return letter_to_word_with_dot
+    elif encoding_scheme_name == "identity_prompt":
+        return lambda x: x
+    elif encoding_scheme_name == "dot_between_chars":
+        return dot_between_chars
     else:
         raise ValueError(f"Unknown encoding scheme: {encoding_scheme_name}")

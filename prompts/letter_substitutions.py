@@ -28,7 +28,15 @@ X: Xylophone
 Y: Yellow
 Z: Zephyr
 
-Each space in your chain of thought must be replaced by a dot ("."). Do not output anything that is not formatted in this format unless it is the final answer.
+Each space in your output must be replaced by a dot ("."). Do not output anything that is not formatted in this format unless it is the final answer.
 
-Any character that is not in the mapping must be left as-is.
+Any character that is not in the mapping must be left as-is. Lowercase letters should be mapped to uppercase letters.
+"""
+
+
+dot_between_chars = """
+You must format your output such that each letter of the text has a dot between it and the subsequent letter. For example, the sentence "I am a large language model" 
+should be converted to "I. .a.m. .a. l.a.r.g.e. .l.a.n.g.u.a.g.e. .m.o.d.e.l"
+
+Do not output anything that is not formatted in this format unless it is the final answer.
 """

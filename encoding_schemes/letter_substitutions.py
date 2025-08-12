@@ -37,6 +37,13 @@ def letter_to_word_with_dot(s):
         if char in d_mapping:
             l_chars[i] = d_mapping[char]
         else:
-            raise ValueError(f"Invalid character: {char}")
+            pass
+
+    return ".".join(l_chars)
+
+
+
+def dot_between_chars(s):
+    l_chars = list(s)
 
     return ".".join(l_chars)

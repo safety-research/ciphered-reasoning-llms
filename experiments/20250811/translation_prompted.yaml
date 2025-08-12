@@ -1,11 +1,11 @@
 experiment:
   table_name: encoding_schemes
 
-  experiment_name: translation_prompted_${encoding_scheme_name}_${model_name}
+  experiment_name: translation_prompted_${encoding_scheme}_${model_id}
 
   experiment_params:
-    model: ${model_name}
-    encoding_scheme: ${encoding_scheme_name}
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
 
     dataset: designing_data_intensive_applications
 
@@ -13,12 +13,12 @@ experiment:
       temperature: 1.0
       n: 8
 
-    translation_prompt: ${encoding_scheme_name}
+    translation_prompt: ${encoding_scheme}
 
   experiment_tags:
 
 stages:
-  - name: generate_dataset
+  - name: generate_ground_truth_translation
     executor:
       path: translation/run_translation.py
       function_name: generate_ground_truth_translation
