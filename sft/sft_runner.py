@@ -31,11 +31,8 @@ def sft_model(config):
     ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
     micro_batch_size = batch_size // 8
     seq_parallel_size = 2 # needed to enable sequence packing in verl SFT
-    if ref_model_size > 30:
+    if ref_model_size > 14:
         micro_batch_size = 2
-        seq_parallel_size = 1
-    elif ref_model_size > 10:
-        micro_batch_size = min(16, micro_batch_size)
 
     subprocess.run(f"""
     NUM_GPUS_PER_NODE=8
