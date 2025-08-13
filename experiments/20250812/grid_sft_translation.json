@@ -20,6 +20,8 @@
         "letter_to_poem_first_letter"
     ],
     "model_id": [
-        "Qwen/Qwen2.5-7B-Instruct"
+	"Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+	"Qwen/Qwen2.5-14B-Instruct"
     ]
 }
