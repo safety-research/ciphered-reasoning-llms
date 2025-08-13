@@ -74,4 +74,7 @@ fi
 # change python -m uv venv to python3
 # bash base_setup.sh
 
+# ulimit -n 65536 before ray start otherwise cluster will run out of fds!
+# sudo fuser -v /dev/nvidia* 2>&1 | grep python | grep -o -E " [0-9]+ " | xargs kill
+
 # HF_HOME=/scratch/hf_cache
