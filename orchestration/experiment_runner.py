@@ -6,7 +6,7 @@ import ray
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from orchestration.experiment_meta_saver import save_experiment_meta, init_experiment_meta_dict
+from orchestration.experiment_meta_saver import save_experiment_meta, init_experiment_meta_dict, compute_experiment_hash
 
 
 def load_config(config_file):
@@ -72,10 +72,25 @@ def execute_pipeline(config):
 
     l_stages = load_experiment_steps(config)
 
+    experiment_hash = compute_experiment_hash(config)
+    checkpoints_dir = os.path.join("output", experiment_hash, "checkpoints")
+    os.makedirs(checkpoints_dir, exist_ok=True)
+
     for stage in l_stages:
         print(f"Running {stage['name']}")
+
+        if os.path.exists(os.path.join(checkpoints_dir, stage['name'])):
+            if config['experiment'].get('force_overwrite', False):
+                print(f"Force overwrite enabled. Overwriting {stage['name']}")
+            else:
+                print(f"Skipping {stage['name']} because there was already a checkpoint.")
+                continue
+
         ray.get(stage['executor'].remote(config, **stage['kwargs']))
         print(f"Done with {stage['name']}")
+
+        with open(os.path.join(checkpoints_dir, stage['name']), 'w') as fp:
+            fp.write("Done.")
 
 
 # TODO(sguo35): add checkpointing logic so we skip completed steps + overwrite functionality

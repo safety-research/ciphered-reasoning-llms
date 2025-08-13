@@ -1,0 +1,64 @@
+import tiktoken
+from transformers import AutoTokenizer
+
+
+def replace_80pct_letters_with_star(s):
+    s = s.split(" ")
+
+    for i in range(len(s)):
+        start_idx = int(len(s) * 0.2)
+        star_len = len(s[i]) - start_idx
+
+        s[i] = s[i][:start_idx] + ('*' * star_len)
+
+    return " ".join(s)
+
+
+def first_letter_of_each_word(s):
+    s = s.split(" ")
+
+    for i in range(len(s)):
+        s[i] = s[i][:1]
+
+    return " ".join(s)
+
+
+cl100k_encoding = tiktoken.get_encoding("cl100k_base")
+
+
+def first_token_of_each_word_cl100k_base(s):
+    ids = enc.encode_ordinary(text)
+
+    if len(ids) == 0:
+        return ""
+
+    b = enc.decode_single_token_bytes(ids[0])
+    return b.decode("utf-8")
+
+
+d_tokenizer_cache = {}
+
+
+def first_token_string(text: str, tokenizer: AutoTokenizer) -> str | None:
+    # Encode with specials, then skip them explicitly (covers BOS/EOS etc.)
+    enc = tokenizer(text, add_special_tokens=False)
+    tokens = tokenizer.convert_ids_to_tokens(enc["input_ids"])
+
+    if len(tokens) == 0:
+        return ""
+
+    return tokens[0]
+
+
+def first_token_of_each_word_model_tokenizer(s, model):
+    if model not in d_tokenizer_cache:
+        d_tokenizer_cache[model] = AutoTokenizer.from_pretrained(model)
+
+    tokenizer = d_tokenizer_cache[model]
+
+    s = s.split(" ")
+    
+    for i in range(len(s)):
+        s[i] = first_token_string(s[i], tokenizer)
+
+    return " ".join(s)

@@ -34,3 +34,4 @@ run: |
 # ray start --port 9265 --dashboard-port 9269 --head
 # cd ~/sky_workdir/encoding-schemes
 # ray job submit --runtime-env orchestration/ray_runtime_env.yaml -- python orchestration/experiment_runner.py --config ${EXPERIMENT_YAML}
+# python orchestration/grid_results.py experiments/20250811/grid_translation.json --eval-script experiments/20250811/translation_prompted.yaml

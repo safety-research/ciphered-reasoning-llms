@@ -7,7 +7,7 @@ import subprocess
 import re
 
 
-@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True)
+@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 64)
 def sft_model(config):
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
@@ -29,7 +29,7 @@ def sft_model(config):
     experiment_name = config["experiment"]["experiment_name"]
 
     ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
-    micro_batch_size = batch_size // 8
+    micro_batch_size = max(1, batch_size // 8)
     seq_parallel_size = 2 # needed to enable sequence packing in verl SFT
     if ref_model_size > 14:
         micro_batch_size = 2
@@ -54,7 +54,7 @@ def sft_model(config):
     SEQ_PARALLEL_SIZE={seq_parallel_size}
     WEIGHT_DECAY={weight_decay}
 
-    /root/sky_workdir/encoding-schemes/sft/run_sft.sh
+    ~/sky_workdir/encoding-schemes/sft/run_sft.sh
     """.replace("\n", " "), shell=True, check=True)
 
     # last step saved to save_path/last

@@ -6,6 +6,7 @@ import pandas as pd
 import tiktoken
 import json
 import re
+import asyncio
 
 
 encoding = tiktoken.get_encoding("cl100k_base")
@@ -24,11 +25,11 @@ def count_tokens_from_messages(messages):
 def generate_ground_truth_translation(config):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-    from encoding_schemes import get_encoding_scheme
+    from encoding_schemes import get_encoding_scheme, is_async_encoding_scheme
     from data import get_dataset
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
-    fn_encoding_scheme = get_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"])
+    fn_encoding_scheme = get_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"], config)
 
     dataset = get_dataset(config["experiment"]["experiment_params"]["dataset"])
 
@@ -37,7 +38,14 @@ def generate_ground_truth_translation(config):
 
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
-    df = pd.DataFrame({"reference_text": dataset, "translated_text": [fn_encoding_scheme(s) for s in dataset]})
+    async def gather_all(tasks):
+        return await asyncio.gather(*tasks)
+
+    translated_text = [fn_encoding_scheme(s) for s in dataset]
+    if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
+        translated_text = asyncio.run(gather_all(translated_text))
+
+    df = pd.DataFrame({"reference_text": dataset, "translated_text": translated_text })
 
     if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
         validation_set_frac = config["experiment"]["experiment_params"]["validation_set_frac"]
@@ -71,7 +79,7 @@ def get_few_shot_examples(df, df_sample_group, config):
     return l_few_shot_examples
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
 def generate_fewshot_prompt(config):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -80,18 +88,23 @@ def generate_fewshot_prompt(config):
 
     experiment_hash = compute_experiment_hash(config)
 
-    target_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
-    df = pd.read_parquet(target_path)
+    l_suffixes = [""]
+    if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
+        l_suffixes.append("_train")
 
-    df['len'] = df['translated_text'].map(len)
-    df_sample_group = df.sort_values('len').head(100)
-    df = df.drop(columns=['len'])
+    for suffix in l_suffixes:
+        target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
+        df = pd.read_parquet(target_path)
 
-    df['few_shot_examples'] = get_few_shot_examples(df, df_sample_group, config)
-    df.to_parquet(target_path)
+        df['len'] = df['translated_text'].map(len)
+        df_sample_group = df.sort_values('len').head(100)
+        df = df.drop(columns=['len'])
+
+        df['few_shot_examples'] = get_few_shot_examples(df, df_sample_group, config)
+        df.to_parquet(target_path)
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
 def generate_sft_dataset(config):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -116,8 +129,6 @@ def generate_sft_dataset(config):
             if len(row['reference_text']) > 4000:
                 n_skipped += 1
                 continue
-
-            assert len(row['translated_text']) < 32000
 
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
@@ -151,7 +162,7 @@ def generate_sft_dataset(config):
         print(f"Got {n_tokens} tokens for {path}")
 
 
-@ray.remote(num_cpus=1, num_gpus=4, retry_exceptions=True)
+@ray.remote(num_cpus=1, num_gpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def generate_prompted_translation(config):
     from vllm import LLM, SamplingParams
 
@@ -178,8 +189,6 @@ def generate_prompted_translation(config):
         if len(row['reference_text']) > 4000:
             n_skipped += 1
             continue
-
-        assert len(row['translated_text']) < 32000
 
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
@@ -245,7 +254,6 @@ def generate_prompted_translation(config):
         )
     logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
     gt_logprobs = [o.prompt_logprobs[l_input_token_lens[i] :] for o in logprobs]
-    print(gt_logprobs[0][0])
     gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
     gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
     gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
