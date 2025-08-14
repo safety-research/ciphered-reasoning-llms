@@ -1,0 +1,27 @@
+{
+    "encoding_scheme": [
+        "letter_to_word_with_dot",
+        "identity",
+        "dot_between_chars",
+        "rot13_cipher",
+        "base64_cipher",
+        "base64_2x_cipher",
+        "base64_3x_cipher",
+        "caesar_cipher",
+        "gzip_to_bpe_encoded",
+        "gzip_to_base64_encoded",
+        "reverse_letters_in_each_word",
+        "random_permute_letters_in_each_word",
+        "swap_even_odd_letters_in_each_word",
+        "reverse_fibonacci_indices_in_each_word",
+        "replace_80pct_letters_with_star",
+        "first_letter_of_each_word",
+        "first_token_of_each_word_model_tokenizer",
+        "letter_to_poem_first_letter"
+    ],
+    "model_id": [
+	    "Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+    	"Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

@@ -46,10 +46,55 @@ def letter_to_word_with_dot(s):
 
 
 
+def inverse_letter_to_word_with_dot(s):
+    d_mapping = {
+        "A": "Apple",
+        "B": "Busy",
+        "C": "Candle",
+        "D": "Dragon",
+        "E": "Echo",
+        "F": "Forest",
+        "G": "Galaxy",
+        "H": "Harbor",
+        "I": "Island",
+        "J": "Journey",
+        "K": "Kite",
+        "L": "Lantern",
+        "M": "Meadow",
+        "N": "North",
+        "O": "Ocean",
+        "P": "Prism",
+        "Q": "Quartz",
+        "R": "River",
+        "S": "Sunset",
+        "T": "Thunder",
+        "U": "Universe",
+        "V": "Velvet",
+        "W": "Willow",
+        "X": "Xylophone",
+        "Y": "Yellow",
+        "Z": "Zephyr",
+    }
+    d_mapping = {v : k for k, v in d_mapping.items()}
+
+    words = s.split(".")
+    ret = ""
+    for word in words:
+        ret += d_mapping.get(word, word)
+
+    return ret
+
+
 def dot_between_chars(s):
     l_chars = list(s)
 
     return ".".join(l_chars)
+
+
+def inverse_dot_between_chars(s):
+    letters = s.split(".")
+
+    return "".join(letters)
 
 
 def letter_to_poem_first_letter(s):

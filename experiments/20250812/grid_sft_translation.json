@@ -1,7 +1,7 @@
 {
     "encoding_scheme": [
         "letter_to_word_with_dot",
-        "identity_prompt",
+        "identity",
         "dot_between_chars",
         "rot13_cipher",
         "base64_cipher",
