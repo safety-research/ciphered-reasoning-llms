@@ -45,7 +45,6 @@ def letter_to_word_with_dot(s):
     return ".".join(l_chars)
 
 
-
 def inverse_letter_to_word_with_dot(s):
     d_mapping = {
         "A": "Apple",
@@ -75,7 +74,7 @@ def inverse_letter_to_word_with_dot(s):
         "Y": "Yellow",
         "Z": "Zephyr",
     }
-    d_mapping = {v : k for k, v in d_mapping.items()}
+    d_mapping = {v: k for k, v in d_mapping.items()}
 
     words = s.split(".")
     ret = ""
@@ -107,7 +106,7 @@ def letter_to_poem_first_letter(s):
             "An old oak whispers tales to the moon.",
             "Among the stars, silence feels alive.",
             "All rivers dream of meeting the ocean.",
-            "A fragile petal braves the winter frost."
+            "A fragile petal braves the winter frost.",
         ],
         "B": [
             "Beneath the willow, shadows weave their dreams.",
@@ -117,7 +116,7 @@ def letter_to_poem_first_letter(s):
             "Bells of twilight ring in silver air.",
             "Bare feet find comfort in warm, soft earth.",
             "Birdsong pours like honey through the dawn.",
-            "Breezes cradle the flowers into sleep."
+            "Breezes cradle the flowers into sleep.",
         ],
         "C": [
             "Crimson leaves drift on the evening tide.",
@@ -127,7 +126,7 @@ def letter_to_poem_first_letter(s):
             "Crows carry messages the wind won’t tell.",
             "Clocks cannot measure a lover’s breath.",
             "Cold stars keep their distance from the fire.",
-            "Crystal frost paints lace upon the glass."
+            "Crystal frost paints lace upon the glass.",
         ],
         "D": [
             "Dewdrops gather like secrets on the grass.",
@@ -137,7 +136,7 @@ def letter_to_poem_first_letter(s):
             "Dancing flames speak in forgotten tongues.",
             "Delicate streams braid silver through the valley.",
             "Dusty roads remember every traveler’s step.",
-            "Dusk folds the world in violet cloth."
+            "Dusk folds the world in violet cloth.",
         ],
         "E": [
             "Echoes linger long after the song is gone.",
@@ -147,7 +146,7 @@ def letter_to_poem_first_letter(s):
             "Eyes of the earth close at midnight.",
             "Endless skies cradle the restless wind.",
             "Every raindrop writes its own short poem.",
-            "Earth sighs beneath the weight of spring."
+            "Earth sighs beneath the weight of spring.",
         ],
         "F": [
             "Fallen leaves whisper of passing time.",
@@ -157,7 +156,7 @@ def letter_to_poem_first_letter(s):
             "Footsteps vanish into the drifting snow.",
             "Fountains laugh in the heat of noon.",
             "Feathers float on the slow, wide stream.",
-            "Frost bites gently at the morning grass."
+            "Frost bites gently at the morning grass.",
         ],
         "G": [
             "Golden light spills over the sleeping hills.",
@@ -167,7 +166,7 @@ def letter_to_poem_first_letter(s):
             "Glass ripples catch the last of the sun.",
             "Gardens hold the breath of summer.",
             "Ghostly mist slips between the pines.",
-            "Glowing coals breathe warmth into the dark."
+            "Glowing coals breathe warmth into the dark.",
         ],
         "H": [
             "Hollow winds wander through ancient stone.",
@@ -177,7 +176,7 @@ def letter_to_poem_first_letter(s):
             "Horizon blushes at the touch of dawn.",
             "Hands of time scatter petals in the air.",
             "Hunters of stars prowl the velvet night.",
-            "Hearts rest in the glow of the hearth."
+            "Hearts rest in the glow of the hearth.",
         ],
         "I": [
             "Ice sings softly under winter’s sun.",
@@ -187,7 +186,7 @@ def letter_to_poem_first_letter(s):
             "In stillness, mountains hold their breath.",
             "Islands float like thoughts on the horizon.",
             "Illusions melt when the morning comes.",
-            "In the rain, the earth begins again."
+            "In the rain, the earth begins again.",
         ],
         "J": [
             "Jade rivers carve through silent stone.",
@@ -197,7 +196,7 @@ def letter_to_poem_first_letter(s):
             "Jewels of dew crown the morning grass.",
             "Jars of sunlight line the garden path.",
             "Justice walks slow, but never tires.",
-            "Juniper winds sweep the sleeping hills."
+            "Juniper winds sweep the sleeping hills.",
         ],
         "K": [
             "Kindness blooms in the coldest winters.",
@@ -207,7 +206,7 @@ def letter_to_poem_first_letter(s):
             "Kisses fall like rain upon warm skin.",
             "Knots of ivy hold the old walls close.",
             "Knowledge flows where rivers meet the sea.",
-            "Keen eyes trace the path of falling stars."
+            "Keen eyes trace the path of falling stars.",
         ],
         "L": [
             "Light spills over the rim of the earth.",
@@ -217,7 +216,7 @@ def letter_to_poem_first_letter(s):
             "Lamps glow like gentle moons in windows.",
             "Lingering rain sings on tin roofs.",
             "Long shadows reach toward the sea.",
-            "Lilies dream in the still water."
+            "Lilies dream in the still water.",
         ],
         "M": [
             "Moonlight drips from the edges of clouds.",
@@ -227,7 +226,7 @@ def letter_to_poem_first_letter(s):
             "Memories rest in the scent of pine.",
             "Meadows sway in the breath of spring.",
             "Music drifts from unseen hands.",
-            "Midnight wraps the world in velvet."
+            "Midnight wraps the world in velvet.",
         ],
         "N": [
             "Night leans softly on the world.",
@@ -237,7 +236,7 @@ def letter_to_poem_first_letter(s):
             "North winds speak of distant snow.",
             "Notes of a song linger in the dark.",
             "Nests cradle the promise of tomorrow.",
-            "Nebulas bloom in the ocean of stars."
+            "Nebulas bloom in the ocean of stars.",
         ],
         "O": [
             "Ocean tides hum the earth to sleep.",
@@ -247,7 +246,7 @@ def letter_to_poem_first_letter(s):
             "Opal skies glow at the edge of night.",
             "On the horizon, dreams begin to rise.",
             "Oaks stand tall through storm and sun.",
-            "Over the hills, shadows slowly grow."
+            "Over the hills, shadows slowly grow.",
         ],
         "P": [
             "Petals drift on the breath of spring.",
@@ -257,7 +256,7 @@ def letter_to_poem_first_letter(s):
             "Pages turn in the hands of time.",
             "Pines sway in the voice of the wind.",
             "Promises glow in the light of dawn.",
-            "Painted skies close the day in fire."
+            "Painted skies close the day in fire.",
         ],
         "Q": [
             "Quiet rain seeps into thirsty soil.",
@@ -267,7 +266,7 @@ def letter_to_poem_first_letter(s):
             "Queenly roses bow to the passing storm.",
             "Quartz shines in the sleeping stream.",
             "Quills scratch secrets into the night.",
-            "Quick shadows dart across the field."
+            "Quick shadows dart across the field.",
         ],
         "R": [
             "Rivers hum to the heart of the forest.",
@@ -277,7 +276,7 @@ def letter_to_poem_first_letter(s):
             "Red dawn spills fire across the sea.",
             "Restless tides chase the waning moon.",
             "Roses breathe perfume into the dusk.",
-            "Rolling hills sleep under a clouded sky."
+            "Rolling hills sleep under a clouded sky.",
         ],
         "S": [
             "Stars spill diamonds across the night.",
@@ -287,7 +286,7 @@ def letter_to_poem_first_letter(s):
             "Silence blooms in the empty hall.",
             "Sunlight warms the edges of the day.",
             "Seashells hold whispers of the deep.",
-            "Smoke curls lazy into the evening air."
+            "Smoke curls lazy into the evening air.",
         ],
         "T": [
             "Twilight folds the day into dream.",
@@ -297,7 +296,7 @@ def letter_to_poem_first_letter(s):
             "Tender hands shape the clay of time.",
             "Thunder rolls like ancient drums.",
             "Thin mist dances over the field.",
-            "Tomorrow waits in the hush of night."
+            "Tomorrow waits in the hush of night.",
         ],
         "U": [
             "Under the moon, the world feels still.",
@@ -307,7 +306,7 @@ def letter_to_poem_first_letter(s):
             "Untold stories hum in the wind.",
             "Upon the shore, footprints fade away.",
             "Under soft snow, seeds dream of spring.",
-            "Unity hums in the song of the forest."
+            "Unity hums in the song of the forest.",
         ],
         "V": [
             "Velvet skies hold the weight of stars.",
@@ -317,7 +316,7 @@ def letter_to_poem_first_letter(s):
             "Violets nod to the morning light.",
             "Vision drifts far beyond the hills.",
             "Vanishing trails lead into the wild.",
-            "Verdant hills sing in the summer wind."
+            "Verdant hills sing in the summer wind.",
         ],
         "W": [
             "Waves speak softly to the sleeping sand.",
@@ -327,7 +326,7 @@ def letter_to_poem_first_letter(s):
             "Wind hums low in the shadowed pines.",
             "Warm rain kisses the dusty road.",
             "Winding rivers cradle the sunset.",
-            "Wings beat steady against the dusk."
+            "Wings beat steady against the dusk.",
         ],
         "X": [
             "Xylographs tell the story of old trees.",
@@ -337,7 +336,7 @@ def letter_to_poem_first_letter(s):
             "Xylophones echo through the summer fair.",
             "Xeric winds sweep the barren dunes.",
             "Xenon lamps guard the lonely pier.",
-            "Xyst paths gleam after the rain."
+            "Xyst paths gleam after the rain.",
         ],
         "Y": [
             "Yellow dawn spills warmth on the land.",
@@ -347,7 +346,7 @@ def letter_to_poem_first_letter(s):
             "Yielding branches sway to the breeze.",
             "Yonder hills sleep in purple shade.",
             "Yarns of gold weave through the fields.",
-            "Yew trees guard the ancient path."
+            "Yew trees guard the ancient path.",
         ],
         "Z": [
             "Zephyrs dance in the scented grove.",
@@ -357,8 +356,8 @@ def letter_to_poem_first_letter(s):
             "Zero stars hide in the storm’s thick cloth.",
             "Zither notes drift through the summer air.",
             "Zinc roofs sing in the pelting rain.",
-            "Zenith crowns the day in gold."
-        ]
+            "Zenith crowns the day in gold.",
+        ],
     }
 
     l_chars = list(s)

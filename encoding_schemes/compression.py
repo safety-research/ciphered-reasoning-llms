@@ -15,11 +15,14 @@ def bytes_to_unicode():
     cs = [chr(n) for n in cs]
     return dict(zip(bs, cs))
 
+
 BYTE_TO_UNI = bytes_to_unicode()
 UNI_TO_BYTE = {v: k for k, v in BYTE_TO_UNI.items()}
 
+
 def bytes_to_shim_text(b: bytes) -> str:
     return "".join(BYTE_TO_UNI[x] for x in b)
+
 
 def shim_text_to_bytes(s: str) -> bytes:
     return bytes(UNI_TO_BYTE[ch] for ch in s)

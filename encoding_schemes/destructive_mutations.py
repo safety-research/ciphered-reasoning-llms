@@ -9,7 +9,7 @@ def replace_80pct_letters_with_star(s):
         start_idx = int(len(s) * 0.2)
         star_len = len(s[i]) - start_idx
 
-        s[i] = s[i][:start_idx] + ('*' * star_len)
+        s[i] = s[i][:start_idx] + ("*" * star_len)
 
     return " ".join(s)
 
@@ -57,7 +57,7 @@ def first_token_of_each_word_model_tokenizer(s, model):
     tokenizer = d_tokenizer_cache[model]
 
     s = s.split(" ")
-    
+
     for i in range(len(s)):
         s[i] = first_token_string(s[i], tokenizer)
 

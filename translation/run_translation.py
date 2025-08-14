@@ -45,7 +45,7 @@ def generate_ground_truth_translation(config):
     if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
         translated_text = asyncio.run(gather_all(translated_text))
 
-    df = pd.DataFrame({"reference_text": dataset, "translated_text": translated_text })
+    df = pd.DataFrame({"reference_text": dataset, "translated_text": translated_text})
 
     if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
         validation_set_frac = config["experiment"]["experiment_params"]["validation_set_frac"]
@@ -67,12 +67,14 @@ def get_few_shot_examples(df, df_sample_group, config):
     l_few_shot_examples = []
 
     for i, row in df.iterrows():
-        df_sample = df_sample_group[df_sample_group['translated_text'] != row['translated_text']]
+        df_sample = df_sample_group[df_sample_group["translated_text"] != row["translated_text"]]
         df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
 
         s = "\n"
         for j, sample_row in df_sample.iterrows():
-            s += f"Example {j + 1}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}" + "\n"
+            s += (
+                f"Example {j + 1}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}" + "\n"
+            )
 
         l_few_shot_examples.append(s)
 
@@ -96,11 +98,11 @@ def generate_fewshot_prompt(config):
         target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
         df = pd.read_parquet(target_path)
 
-        df['len'] = df['translated_text'].map(len)
-        df_sample_group = df.sort_values('len').head(100)
-        df = df.drop(columns=['len'])
+        df["len"] = df["translated_text"].map(len)
+        df_sample_group = df.sort_values("len").head(100)
+        df = df.drop(columns=["len"])
 
-        df['few_shot_examples'] = get_few_shot_examples(df, df_sample_group, config)
+        df["few_shot_examples"] = get_few_shot_examples(df, df_sample_group, config)
         df.to_parquet(target_path)
 
 
@@ -126,13 +128,13 @@ def generate_sft_dataset(config):
 
         l_inputs = []
         for i, row in ground_truth_translation.iterrows():
-            if len(row['reference_text']) > 4000:
+            if len(row["reference_text"]) > 4000:
                 n_skipped += 1
                 continue
 
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-                row_translation_prompt += "\n" + row['few_shot_examples']
+                row_translation_prompt += "\n" + row["few_shot_examples"]
 
             l_inputs.append(
                 {
@@ -144,10 +146,7 @@ def generate_sft_dataset(config):
                             "role": "user",
                             "content": f"Modify the following text according to the provided scheme:\n\n{row['reference_text']}",
                         },
-                        {
-                            "role": "assistant",
-                            "content": row['translated_text']
-                        }
+                        {"role": "assistant", "content": row["translated_text"]},
                     ],
                 }
             )
@@ -158,7 +157,7 @@ def generate_sft_dataset(config):
 
         print(f"Wrote {path}")
 
-        n_tokens = df_sft['messages'].map(count_tokens_from_messages).sum()
+        n_tokens = df_sft["messages"].map(count_tokens_from_messages).sum()
         print(f"Got {n_tokens} tokens for {path}")
 
 
@@ -181,18 +180,17 @@ def generate_prompted_translation(config):
     # Build the prompt
     translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
 
-
     n_skipped = 0
 
     l_inputs = []
     for i, row in ground_truth_translation.iterrows():
-        if len(row['reference_text']) > 4000:
+        if len(row["reference_text"]) > 4000:
             n_skipped += 1
             continue
 
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-            row_translation_prompt += "\n" + row['few_shot_examples']
+            row_translation_prompt += "\n" + row["few_shot_examples"]
 
         l_inputs.append(
             {
@@ -220,7 +218,14 @@ def generate_prompted_translation(config):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for translation instead...")
 
-    llm = LLM(model=sampling_model, enforce_eager=True, gpu_memory_utilization=0.7, rope_scaling={"rope_type":"yarn","factor":4.0,"original_max_position_embeddings":32768}, max_model_len=131072, tensor_parallel_size=4)
+    llm = LLM(
+        model=sampling_model,
+        enforce_eager=True,
+        gpu_memory_utilization=0.7,
+        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        max_model_len=131072,
+        tensor_parallel_size=4,
+    )
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
         max_tokens=12000,

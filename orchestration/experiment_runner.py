@@ -45,24 +45,18 @@ def load_stage_executor(stage_config):
 def load_experiment_steps(config):
     l_stages = []
 
-    l_stages.append({
-        'executor': init_experiment_meta_dict,
-        'kwargs': {},
-        'name': 'init_experiment_meta_dict'
-    })
+    l_stages.append({"executor": init_experiment_meta_dict, "kwargs": {}, "name": "init_experiment_meta_dict"})
 
     for stage in config["stages"]:
-        l_stages.append({
-            'executor': load_stage_executor(stage),
-            'kwargs': stage["executor"]["function_kwargs"],
-            'name': stage['name']
-        })
+        l_stages.append(
+            {
+                "executor": load_stage_executor(stage),
+                "kwargs": stage["executor"]["function_kwargs"],
+                "name": stage["name"],
+            }
+        )
 
-    l_stages.append({
-        'executor': save_experiment_meta,
-        'kwargs': {},
-        'name': 'save_experiment_meta'
-    })
+    l_stages.append({"executor": save_experiment_meta, "kwargs": {}, "name": "save_experiment_meta"})
 
     return l_stages
 
@@ -79,21 +73,22 @@ def execute_pipeline(config):
     for stage in l_stages:
         print(f"Running {stage['name']}")
 
-        if os.path.exists(os.path.join(checkpoints_dir, stage['name'])):
-            if config['experiment'].get('force_overwrite', False):
+        if os.path.exists(os.path.join(checkpoints_dir, stage["name"])):
+            if config["experiment"].get("force_overwrite", False):
                 print(f"Force overwrite enabled. Overwriting {stage['name']}")
             else:
                 print(f"Skipping {stage['name']} because there was already a checkpoint.")
                 continue
 
-        ray.get(stage['executor'].remote(config, **stage['kwargs']))
+        ray.get(stage["executor"].remote(config, **stage["kwargs"]))
         print(f"Done with {stage['name']}")
 
-        with open(os.path.join(checkpoints_dir, stage['name']), 'w') as fp:
+        with open(os.path.join(checkpoints_dir, stage["name"]), "w") as fp:
             fp.write("Done.")
 
 
 # TODO(sguo35): add checkpointing logic so we skip completed steps + overwrite functionality
+
 
 @ray.remote
 def execute_pipeline_remote(config):

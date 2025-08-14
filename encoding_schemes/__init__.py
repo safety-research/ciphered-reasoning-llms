@@ -29,9 +29,8 @@ from encoding_schemes.letter_substitutions import (
     letter_to_word_with_dot,
     dot_between_chars,
     letter_to_poem_first_letter,
-
     inverse_letter_to_word_with_dot,
-    inverse_dot_between_chars
+    inverse_dot_between_chars,
 )
 
 
@@ -47,18 +46,14 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "identity": identity,
         "reverse_identity": identity,
         "speaking_identity": identity,
-
         "letter_to_word_with_dot": letter_to_word_with_dot,
         "reverse_letter_to_word_with_dot": letter_to_word_with_dot,
         "speaking_letter_to_word_with_dot": letter_to_word_with_dot,
-
         "dot_between_chars": dot_between_chars,
         "reverse_dot_between_chars": dot_between_chars,
         "speaking_dot_between_chars": dot_between_chars,
-
         "letter_to_poem_first_letter": letter_to_poem_first_letter,
         "reverse_letter_to_poem_first_letter": letter_to_poem_first_letter,
-
         # ciphers
         "rot13_cipher": rot13_cipher,
         "reverse_rot13_cipher": rot13_cipher,
@@ -70,13 +65,11 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "reverse_base64_3x_cipher": base64_3x_cipher,
         "caesar_cipher": caesar_cipher,
         "reverse_caesar_cipher": caesar_cipher,
-
         # compression
         "gzip_to_bpe_encoded": gzip_to_bpe_encoded,
         "reverse_gzip_to_bpe_encoded": gzip_to_bpe_encoded,
         "gzip_to_base64_encoded": gzip_to_base64_encoded,
         "reverse_gzip_to_base64_encoded": gzip_to_base64_encoded,
-
         # letter permutations
         "reverse_letters_in_each_word": reverse_letters_in_each_word,
         "reverse_reverse_letters_in_each_word": reverse_letters_in_each_word,
@@ -86,7 +79,6 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "reverse_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word,
         "reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word,
         "reverse_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word,
-
         # destructive mutations
         "replace_80pct_letters_with_star": replace_80pct_letters_with_star,
         "reverse_replace_80pct_letters_with_star": replace_80pct_letters_with_star,
@@ -108,7 +100,7 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
     encoding_map = {
         "speaking_identity": identity,
         "speaking_letter_to_word_with_dot": inverse_letter_to_word_with_dot,
-        "speaking_dot_between_chars": inverse_dot_between_chars
+        "speaking_dot_between_chars": inverse_dot_between_chars,
     }
 
     try:

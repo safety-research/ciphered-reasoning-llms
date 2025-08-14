@@ -34,7 +34,7 @@ def evaluate_math_accuracy(config):
 
         for n in range(config["experiment"]["experiment_params"]["sampling_params"]["n"]):
             try:
-                extracted_model_response = extract_answer(row['model_cot'][n])
+                extracted_model_response = extract_answer(row["model_cot"][n])
             except Exception as e:
                 print(e)
                 l_sample_correct.append(0.0)
@@ -44,14 +44,12 @@ def evaluate_math_accuracy(config):
                 l_sample_correct.append(0.0)
                 continue
 
-            if len(row['answer']) == 0:
+            if len(row["answer"]) == 0:
                 l_sample_correct.append(0.0)
                 continue
 
             try:
-                l_sample_correct.append(
-                    compute_score(extracted_model_response, row['answer'])
-                )
+                l_sample_correct.append(compute_score(extracted_model_response, row["answer"]))
             except Exception as e:
                 print(e)
                 l_sample_correct.append(0.0)

@@ -41,16 +41,20 @@ def generate_ground_truth_translation(config):
     async def gather_all(tasks):
         return await asyncio.gather(*tasks)
 
-    translated_solution = [fn_encoding_scheme(r['solution']) for r in dataset]
+    translated_solution = [fn_encoding_scheme(r["solution"]) for r in dataset]
     if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
         translated_solution = asyncio.run(gather_all(translated_solution))
 
-    df = pd.DataFrame({
-        "reference_problem": [r['problem'] for r in dataset],
-        "reference_solution": [r['solution'] for r in dataset],
-        "translated_solution": [sol + f"\n\\boxed{{{r['answer']}}}" for sol, r in zip(translated_solution, dataset)],
-        "answer": [r['answer'] for r in dataset]
-    })
+    df = pd.DataFrame(
+        {
+            "reference_problem": [r["problem"] for r in dataset],
+            "reference_solution": [r["solution"] for r in dataset],
+            "translated_solution": [
+                sol + f"\n\\boxed{{{r['answer']}}}" for sol, r in zip(translated_solution, dataset)
+            ],
+            "answer": [r["answer"] for r in dataset],
+        }
+    )
 
     if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
         validation_set_frac = config["experiment"]["experiment_params"]["validation_set_frac"]
@@ -72,12 +76,15 @@ def get_few_shot_examples(df, df_sample_group, config):
     l_few_shot_examples = []
 
     for i, row in df.iterrows():
-        df_sample = df_sample_group[df_sample_group['translated_solution'] != row['translated_solution']]
+        df_sample = df_sample_group[df_sample_group["translated_solution"] != row["translated_solution"]]
         df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
 
         s = "\n"
         for j, sample_row in df_sample.iterrows():
-            s += f"Example {j + 1}. Question: {sample_row['reference_problem']} Output: {sample_row['translated_solution']}" + "\n"
+            s += (
+                f"Example {j + 1}. Question: {sample_row['reference_problem']} Output: {sample_row['translated_solution']}"
+                + "\n"
+            )
 
         l_few_shot_examples.append(s)
 
@@ -101,11 +108,11 @@ def generate_fewshot_prompt(config):
         target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
         df = pd.read_parquet(target_path)
 
-        df['len'] = df['translated_solution'].map(len)
-        df_sample_group = df.sort_values('len').head(100)
-        df = df.drop(columns=['len'])
+        df["len"] = df["translated_solution"].map(len)
+        df_sample_group = df.sort_values("len").head(100)
+        df = df.drop(columns=["len"])
 
-        df['few_shot_examples'] = get_few_shot_examples(df, df_sample_group, config)
+        df["few_shot_examples"] = get_few_shot_examples(df, df_sample_group, config)
         df.to_parquet(target_path)
 
 
@@ -131,7 +138,7 @@ def generate_sft_dataset(config):
         for i, row in ground_truth_translation.iterrows():
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-                row_translation_prompt += "\n" + row['few_shot_examples']
+                row_translation_prompt += "\n" + row["few_shot_examples"]
 
             l_inputs.append(
                 {
@@ -141,10 +148,7 @@ def generate_sft_dataset(config):
                             "role": "user",
                             "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding.",
                         },
-                        {
-                            "role": "assistant",
-                            "content": row['translated_solution']
-                        }
+                        {"role": "assistant", "content": row["translated_solution"]},
                     ],
                 }
             )
@@ -155,7 +159,7 @@ def generate_sft_dataset(config):
 
         print(f"Wrote {path}")
 
-        n_tokens = df_sft['messages'].map(count_tokens_from_messages).sum()
+        n_tokens = df_sft["messages"].map(count_tokens_from_messages).sum()
         print(f"Got {n_tokens} tokens for {path}")
 
 
@@ -183,13 +187,13 @@ def generate_prompted_translation(config):
 
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-            row_translation_prompt += "\n" + row['few_shot_examples']
+            row_translation_prompt += "\n" + row["few_shot_examples"]
 
         l_inputs.append(
             {
-                "answer": row['answer'],
-                "reference_problem": row['reference_problem'],
-                "reference_solution": row['reference_solution'],
+                "answer": row["answer"],
+                "reference_problem": row["reference_problem"],
+                "reference_solution": row["reference_solution"],
                 "prompt": [
                     {"role": "system", "content": row_translation_prompt},
                     {
@@ -210,7 +214,14 @@ def generate_prompted_translation(config):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for generation instead...")
 
-    llm = LLM(model=sampling_model, enforce_eager=True, gpu_memory_utilization=0.7, rope_scaling={"rope_type":"yarn","factor":4.0,"original_max_position_embeddings":32768}, max_model_len=131072, tensor_parallel_size=4)
+    llm = LLM(
+        model=sampling_model,
+        enforce_eager=True,
+        gpu_memory_utilization=0.7,
+        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        max_model_len=131072,
+        tensor_parallel_size=4,
+    )
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
         max_tokens=12000,
@@ -246,28 +257,29 @@ def judge_cot_encoding_English_coherence(config):
 
     df = pd.read_parquet(target_path)
 
-    fn_inverse_encoding_scheme = get_inverse_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"], config)
+    fn_inverse_encoding_scheme = get_inverse_encoding_scheme(
+        config["experiment"]["experiment_params"]["encoding_scheme"], config
+    )
 
-    l_inverted_cot = [[fn_inverse_encoding_scheme(cot) for cot in cots] for cots in df['model_cot']]
+    l_inverted_cot = [[fn_inverse_encoding_scheme(cot) for cot in cots] for cots in df["model_cot"]]
 
     # Ask LLM for inference
-    llm = LLM(model="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8", enforce_eager=True, gpu_memory_utilization=0.7, rope_scaling={"rope_type":"yarn","factor":4.0,"original_max_position_embeddings":32768}, max_model_len=131072, tensor_parallel_size=8, enable_expert_parallel=True)
+    llm = LLM(
+        model="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
+        enforce_eager=True,
+        gpu_memory_utilization=0.7,
+        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        max_model_len=131072,
+        tensor_parallel_size=8,
+        enable_expert_parallel=True,
+    )
 
     l_judge_prompts = []
     for cots in l_inverted_cot:
         for cot in cots:
-            l_judge_prompts.append(
-                [
-                    {
-                        "role": "user",
-                        "content": coherent_english_judge + f"\n<text>{cot}</text>"
-                    }
-                ]
-            )
+            l_judge_prompts.append([{"role": "user", "content": coherent_english_judge + f"\n<text>{cot}</text>"}])
 
-    judge_sampling_params = SamplingParams(
-        max_tokens=1024
-    )
+    judge_sampling_params = SamplingParams(max_tokens=1024)
     outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)
     outputs_idx = 0
     l_judge_scores = []
@@ -286,8 +298,8 @@ def judge_cot_encoding_English_coherence(config):
 
         l_judge_scores.append(l_instance_scores)
 
-    df['english_coherence_scores'] = l_judge_scores
-    df['decoded_cot'] = l_inverted_cot
+    df["english_coherence_scores"] = l_judge_scores
+    df["decoded_cot"] = l_inverted_cot
 
     df.to_parquet(target_path)
 

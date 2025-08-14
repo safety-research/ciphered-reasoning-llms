@@ -61,7 +61,7 @@ def run_eval_orchestrator_remote(
             # Leave other types unchanged
             return obj
 
-    d_transformed_params = {f"${{{param_name}}}" : param_value for param_name, param_value in params.items()}
+    d_transformed_params = {f"${{{param_name}}}": param_value for param_name, param_value in params.items()}
 
     def transform_func(s):
         for key in d_transformed_params:

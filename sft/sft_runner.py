@@ -23,18 +23,19 @@ def sft_model(config):
     clip_grad = config["experiment"]["experiment_params"]["sft_params"]["clip_grad"]
     num_epochs = config["experiment"]["experiment_params"]["sft_params"]["num_epochs"]
     weight_decay = config["experiment"]["experiment_params"]["sft_params"]["weight_decay"]
-    
+
     save_path = os.path.join(hash_dir, "sft_model")
     project_name = config["experiment"]["project_name"]
     experiment_name = config["experiment"]["experiment_name"]
 
     ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
     micro_batch_size = max(1, batch_size // 8)
-    seq_parallel_size = 2 # needed to enable sequence packing in verl SFT
+    seq_parallel_size = 2  # needed to enable sequence packing in verl SFT
     if ref_model_size > 14:
         micro_batch_size = 2
 
-    subprocess.run(f"""
+    subprocess.run(
+        f"""
     NUM_GPUS_PER_NODE=8
     NUM_NODES=1
     NODE_RANK=0
@@ -55,6 +56,11 @@ def sft_model(config):
     WEIGHT_DECAY={weight_decay}
 
     ~/sky_workdir/encoding-schemes/sft/run_sft.sh
-    """.replace("\n", " "), shell=True, check=True)
+    """.replace(
+            "\n", " "
+        ),
+        shell=True,
+        check=True,
+    )
 
     # last step saved to save_path/last

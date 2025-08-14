@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def reverse_letters_in_each_word(s):
     s = s.split(" ")
     for i in range(len(s)):
@@ -66,6 +67,3 @@ def reverse_fibonacci_indices_in_each_word(s):
         words[i] = "".join(chars)
 
     return " ".join(words)
-
-
-
