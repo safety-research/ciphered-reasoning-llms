@@ -241,6 +241,68 @@ def generate_prompted_translation(config):
 
 
 @ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def judge_cot_style_adherence(config):
+    from vllm import LLM, SamplingParams
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from prompts.translation.judge import followed_encoding_style_judge
+    from utils.vllm import kill_vllm_process
+
+    experiment_hash = compute_experiment_hash(config)
+
+    generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    df_generated_cot = pd.read_parquet(generated_cot_path)
+
+    sft_ref_path = os.path.join("output", experiment_hash, "data", "sft.parquet")
+    df_sft = pd.read_parquet(sft_ref_path)
+
+    # Ask LLM for inference
+    llm = LLM(
+        model="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
+        enforce_eager=True,
+        gpu_memory_utilization=0.7,
+        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        max_model_len=131072,
+        tensor_parallel_size=8,
+        enable_expert_parallel=True,
+    )
+
+    l_judge_prompts = []
+    for (_, generated_cot_row), (_, sft_row) in zip(df_generated_cot.iterrows(), df_sft.iterrows()):
+        sft_reference = sft_row['messages'][-1]['content']
+
+        for cot in generated_cot_row['model_cot']:
+            l_judge_prompts.append([{"role": "user", "content": followed_encoding_style_judge + f"\n<text1>{cot}</text1>\n<text2>{sft_reference}"}])
+
+    judge_sampling_params = SamplingParams(max_tokens=1024)
+    outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)
+    outputs_idx = 0
+    l_judge_scores = []
+
+    for cots in df_generated_cot['model_cot']:
+        l_instance_scores = []
+        for cot in cots:
+            text = outputs[outputs_idx].outputs[0].text
+            outputs_idx += 1
+
+            search_result = re.search("<answer>(.*?)</answer>", text)
+            if search_result:
+                l_instance_scores.append(1.0 if search_result.group(1) == "Yes" else 0.0)
+            else:
+                l_instance_scores.append(0.0)
+
+        l_judge_scores.append(l_instance_scores)
+
+    df_generated_cot["followed_encoding_style"] = l_judge_scores
+
+    df_generated_cot.to_parquet(generated_cot_path)
+
+    kill_vllm_process(llm)
+
+
+@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def judge_cot_encoding_English_coherence(config):
     from vllm import LLM, SamplingParams
 

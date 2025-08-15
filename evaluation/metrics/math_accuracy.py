@@ -19,11 +19,26 @@ def extract_answer(model_response: str) -> str:
         return model_response
 
 
+import signal
+
+class timeout:
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
+
+
 @ray.remote(num_cpus=1)
 def evaluate_math_accuracy(config):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from orchestration.experiment_meta_saver import compute_experiment_hash
-    from evaluation.metrics.math_accuracy import extract_answer
+    from evaluation.metrics.math_accuracy import extract_answer, timeout
 
     experiment_hash = compute_experiment_hash(config)
     df = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
@@ -34,7 +49,8 @@ def evaluate_math_accuracy(config):
 
         for n in range(config["experiment"]["experiment_params"]["sampling_params"]["n"]):
             try:
-                extracted_model_response = extract_answer(row["model_cot"][n])
+                with timeout():
+                    extracted_model_response = extract_answer(row["model_cot"][n])
             except Exception as e:
                 print(e)
                 l_sample_correct.append(0.0)
@@ -49,7 +65,8 @@ def evaluate_math_accuracy(config):
                 continue
 
             try:
-                l_sample_correct.append(compute_score(extracted_model_response, row["answer"]))
+                with timeout():
+                    l_sample_correct.append(compute_score(extracted_model_response, row["answer"]))
             except Exception as e:
                 print(e)
                 l_sample_correct.append(0.0)

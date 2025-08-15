@@ -75,9 +75,9 @@ def execute_pipeline(config):
 
         if os.path.exists(os.path.join(checkpoints_dir, stage["name"])):
             if config["experiment"].get("force_overwrite", False):
-                print(f"Force overwrite enabled. Overwriting {stage['name']}")
+                print(f"Force overwrite enabled. Overwriting {stage['name']}, hash {experiment_hash}")
             else:
-                print(f"Skipping {stage['name']} because there was already a checkpoint.")
+                print(f"Skipping {stage['name']} because there was already a checkpoint, hash {experiment_hash}.")
                 continue
 
         ray.get(stage["executor"].remote(config, **stage["kwargs"]))

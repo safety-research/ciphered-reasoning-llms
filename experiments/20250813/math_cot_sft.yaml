@@ -57,6 +57,12 @@ stages:
       function_name: judge_cot_encoding_English_coherence
       function_kwargs: {}
 
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+
   - name: evaluate_math_accuracy
     executor:
       path: evaluation/metrics/math_accuracy.py
