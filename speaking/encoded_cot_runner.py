@@ -222,10 +222,16 @@ def generate_prompted_translation(config):
         max_model_len=131072,
         tensor_parallel_size=4,
     )
+
+    extra_sampling_kwargs = {}
+    if config["experiment"]["experiment_params"]["encoding_scheme"] == "speaking_zero_shot":
+        from vllm.sampling_params import GuidedDecodingParams
+        extra_sampling_kwargs['guided_decoding'] = GuidedDecodingParams(regex=r"\\boxed\{.+\}")
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
         max_tokens=12000,
         n=config["experiment"]["experiment_params"]["sampling_params"]["n"],
+        **extra_sampling_kwargs
     )
 
     outputs = llm.chat([r["prompt"] for r in l_inputs], sampling_params=sampling_params, use_tqdm=True)

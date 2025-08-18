@@ -5,9 +5,18 @@ from difflib import get_close_matches
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 # Prompts for substitutions / identity
-from prompts.translation.identity import identity_prompt
-from prompts.reverse_translation.identity import reverse_identity_prompt
-from prompts.speaking.identity import identity_prompt as speaking_identity_prompt
+from prompts.translation.identity import (
+    identity_prompt,
+    zero_shot_prompt
+)
+from prompts.reverse_translation.identity import (
+    reverse_identity_prompt,
+    reverse_zero_shot_prompt
+)
+from prompts.speaking.identity import (
+    identity_prompt as speaking_identity_prompt,
+    zero_shot_prompt as speaking_zero_shot_prompt
+)
 
 from prompts.translation.letter_substitutions import (
     letter_to_word_with_dot_prompt,
@@ -84,47 +93,67 @@ from prompts.speaking.letter_substitutions import (
 
 PROMPT_MAP = {
     # substitutions / identity
+    "zero_shot": zero_shot_prompt,
+    "reverse_zero_shot": reverse_zero_shot_prompt,
+    "speaking_zero_shot": speaking_zero_shot_prompt,
+
     "identity": identity_prompt,
     "reverse_identity": reverse_identity_prompt,
     "speaking_identity": speaking_identity_prompt,
+
     "letter_to_word_with_dot": letter_to_word_with_dot_prompt,
     "reverse_letter_to_word_with_dot": reverse_letter_to_word_with_dot_prompt,
     "speaking_letter_to_word_with_dot": speaking_letter_to_word_with_dot_prompt,
+
     "dot_between_chars": dot_between_chars,
     "reverse_dot_between_chars": reverse_dot_between_chars,
     "speaking_dot_between_chars": speaking_dot_between_chars_prompt,
+
     "letter_to_poem_first_letter": letter_to_poem_first_letter_prompt,
     "reverse_letter_to_poem_first_letter": reverse_letter_to_poem_first_letter_prompt,
+
     # ciphers
     "rot13_cipher": rot13_cipher_prompt,
     "reverse_rot13_cipher": reverse_rot13_cipher_prompt,
+
     "base64_cipher": base64_cipher_prompt,
     "reverse_base64_cipher": reverse_base64_cipher_prompt,
+
     "base64_2x_cipher": base64_2x_cipher_prompt,
     "reverse_base64_2x_cipher": reverse_base64_2x_cipher_prompt,
+
     "base64_3x_cipher": base64_3x_cipher_prompt,
     "reverse_base64_3x_cipher": reverse_base64_3x_cipher_prompt,
+
     "caesar_cipher": caesar_cipher_prompt,
     "reverse_caesar_cipher": reverse_caesar_cipher_prompt,
+
     # compression
     "gzip_to_bpe_encoded": gzip_to_bpe_encoded_prompt,
     "reverse_gzip_to_bpe_encoded": reverse_gzip_to_bpe_encoded_prompt,
+
     "gzip_to_base64_encoded": gzip_to_base64_encoded_prompt,
     "reverse_gzip_to_base64_encoded": reverse_gzip_to_base64_encoded_prompt,
+
     # letter permutations
     "reverse_letters_in_each_word": reverse_letters_in_each_word_prompt,
     "reverse_reverse_letters_in_each_word": reverse_reverse_letters_in_each_word_prompt,
+
     "random_permute_letters_in_each_word": random_permute_letters_in_each_word_prompt,
     "reverse_random_permute_letters_in_each_word": reverse_random_permute_letters_in_each_word_prompt,
+
     "swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word_prompt,
     "reverse_swap_even_odd_letters_in_each_word": reverse_swap_even_odd_letters_in_each_word_prompt,
+
     "reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word_prompt,
     "reverse_reverse_fibonacci_indices_in_each_word": reverse_reverse_fibonacci_indices_in_each_word_prompt,
     # destructive mutations
     "replace_80pct_letters_with_star": replace_80pct_letters_with_star_prompt,
     "reverse_replace_80pct_letters_with_star": reverse_replace_80pct_letters_with_star_prompt,
+
     "first_letter_of_each_word": first_letter_of_each_word_prompt,
     "reverse_first_letter_of_each_word": reverse_first_letter_of_each_word_prompt,
+    
     "first_token_of_each_word_model_tokenizer": first_token_of_each_word_model_tokenizer_prompt,
     "reverse_first_token_of_each_word_model_tokenizer": reverse_first_token_of_each_word_model_tokenizer_prompt,
 }
