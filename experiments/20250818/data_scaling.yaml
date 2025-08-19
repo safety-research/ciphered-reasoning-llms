@@ -1,0 +1,80 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: datascaling_mathcot_sft_${encoding_scheme}_${model_id}_${num_dataset_examples}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: prm800k_raw
+    validation_set_frac: 0.2
+
+    sampling_params:
+      temperature: 1.0
+      n: 8
+
+    sft_params:
+      batch_size: -1
+      est_num_steps: 500
+      learning_rate: 2e-6
+      clip_grad: 1.0
+      num_epochs: 1
+      weight_decay: 0.0
+
+    translation_prompt: ${encoding_scheme}
+
+  experiment_tags:
+
+stages:
+  - name: generate_ground_truth_translation
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs: {}
+
+  - name: generate_ground_truth_training_translation
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs:
+        dataset_override: numina_math_cot_${num_dataset_examples}
+        validation_set_frac_override: 0.0
+        write_as_train_file: True
+
+  - name: generate_sft_dataset
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_sft_dataset
+      function_kwargs: {}
+
+  - name: sft_model
+    executor:
+      path: sft/sft_runner.py
+      function_name: sft_model
+      function_kwargs: {}
+
+  - name: generate_prompted_translation
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_prompted_translation
+      function_kwargs: {}
+
+  - name: judge_cot_encoding_English_coherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_encoding_English_coherence
+      function_kwargs: {}
+
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+
+  - name: evaluate_math_accuracy
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs: {}

@@ -28,8 +28,18 @@ def sft_model(config):
     project_name = config["experiment"]["project_name"]
     experiment_name = config["experiment"]["experiment_name"]
 
+    dynamic_batch_size_steps = config["experiment"]["experiment_params"]["sft_params"].get("est_num_steps", None)
+    if dynamic_batch_size_steps:
+        df_train = pd.read_parquet(train_path)
+        n_examples = len(df_train)
+
+        batch_size = n_examples / dynamic_batch_size_steps
+        batch_size = int(batch_size / 4) * 4
+
     ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
-    micro_batch_size = max(1, batch_size // 8)
+    micro_batch_size = max(1, batch_size // 4)
+    micro_batch_size = min(micro_batch_size, 64)
+
     seq_parallel_size = 2  # needed to enable sequence packing in verl SFT
     if ref_model_size > 14:
         micro_batch_size = 2

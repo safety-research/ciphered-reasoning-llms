@@ -1,0 +1,22 @@
+{
+    "encoding_scheme": [
+        "speaking_identity",
+        "speaking_dot_between_chars",
+        "speaking_zero_shot"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-14B-Instruct",
+        "Qwen/Qwen2.5-32B-Instruct"
+    ],
+    "num_dataset_examples": [
+        "8000",
+        "16000",
+        "32000",
+        "64000",
+        "128000",
+        "256000",
+        "512000"
+    ]
+}

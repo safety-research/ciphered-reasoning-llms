@@ -22,7 +22,7 @@ def count_tokens_from_messages(messages):
 
 
 @ray.remote(num_cpus=1)
-def generate_ground_truth_translation(config):
+def generate_ground_truth_translation(config, dataset_override=None, validation_set_frac_override=None, write_as_train_file=False):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from encoding_schemes import get_encoding_scheme, is_async_encoding_scheme
@@ -31,7 +31,10 @@ def generate_ground_truth_translation(config):
 
     fn_encoding_scheme = get_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"], config)
 
-    dataset = get_dataset(config["experiment"]["experiment_params"]["dataset"])
+    dataset_name = config["experiment"]["experiment_params"]["dataset"]
+    if dataset_override:
+        dataset_name = dataset_override
+    dataset = get_dataset(dataset_name)
 
     experiment_hash = compute_experiment_hash(config)
     target_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
@@ -56,16 +59,21 @@ def generate_ground_truth_translation(config):
         }
     )
 
-    if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
-        validation_set_frac = config["experiment"]["experiment_params"]["validation_set_frac"]
+    validation_set_frac = config["experiment"]["experiment_params"].get("validation_set_frac", 0)
+    if validation_set_frac_override is not None:
+        validation_set_frac = validation_set_frac_override
+
+    train_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation_train.parquet")
+    if validation_set_frac:
         train_set_frac = 1.0 - validation_set_frac
 
         df_train = df.sample(frac=train_set_frac, random_state=42)
         df_valid = df[~df.index.isin(df_train.index)]
-
-        train_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation_train.parquet")
+        
         df_train.to_parquet(train_path)
         df_valid.to_parquet(target_path)
+    elif write_as_train_file:
+        df.to_parquet(train_path)
     else:
         df.to_parquet(target_path)
 
