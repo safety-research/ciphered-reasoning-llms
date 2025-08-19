@@ -25,6 +25,8 @@ experiment:
 
     translation_prompt: ${encoding_scheme}
 
+    use_sft_model_for_sampling: True
+
   experiment_tags:
 
 stages:

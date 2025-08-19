@@ -2,7 +2,7 @@ experiment:
   table_name: encoding_schemes
 
   project_name: encoding_schemes
-  experiment_name: math_cot_sft_${encoding_scheme}_${model_id}
+  experiment_name: mathcot_sft_${encoding_scheme}_${model_id}
 
   experiment_params:
     model: ${model_id}
@@ -13,18 +13,13 @@ experiment:
 
     sampling_params:
       temperature: 1.0
-      n: 8
+      n: 1
 
-    sft_params:
-      batch_size: 64
-      learning_rate: 2e-6
-      clip_grad: 1.0
-      num_epochs: 1
-      weight_decay: 0.0
+    base_url: https://api.openai.com/v1/
 
     translation_prompt: ${encoding_scheme}
-    
-    use_sft_model_for_sampling: True
+
+    use_api_sft_model_for_sampling: True
 
   experiment_tags:
 
@@ -41,16 +36,16 @@ stages:
       function_name: generate_sft_dataset
       function_kwargs: {}
 
-  - name: sft_model
+  - name: openai_sft_model
     executor:
       path: sft/sft_runner.py
-      function_name: sft_model
+      function_name: openai_sft_model
       function_kwargs: {}
 
-  - name: generate_prompted_translation
+  - name: generate_openai_prompted_translation
     executor:
       path: speaking/encoded_cot_runner.py
-      function_name: generate_prompted_translation
+      function_name: generate_openai_prompted_translation
       function_kwargs: {}
 
   - name: judge_cot_encoding_English_coherence

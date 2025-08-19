@@ -28,4 +28,5 @@ torchrun    --nproc_per_node=$NUM_GPUS_PER_NODE \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=$NUM_EPOCHS \
     trainer.logger=['console','wandb'] \
+    trainer.test_freq=50 \
     trainer.default_hdfs_dir=null $@

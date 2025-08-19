@@ -7,6 +7,7 @@ import tiktoken
 import json
 import re
 import asyncio
+from openai import AsyncOpenAI
 
 
 encoding = tiktoken.get_encoding("cl100k_base")
@@ -252,6 +253,128 @@ def generate_prompted_translation(config):
     df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
 
     kill_vllm_process(llm)
+
+
+@ray.remote(num_cpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def generate_openai_prompted_translation(config):
+    from openai import AsyncOpenAI
+    from asyncio import Semaphore
+    import asyncio
+    from tqdm.asyncio import tqdm
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from prompts import get_translation_prompt
+    from env.openai import set_openai_key
+
+    set_openai_key()
+
+    experiment_hash = compute_experiment_hash(config)
+
+    ground_truth_translation = pd.read_parquet(
+        os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    )
+
+    # Build the prompt
+    translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
+    translation_prompt = get_translation_prompt(translation_prompt_type)
+
+    if translation_prompt_type == "speaking_zero_shot":
+        # prefill answer
+        l_prefill = [{
+            "role": "assistant",
+            "content": r"\boxed"
+        }]
+    else:
+        l_prefill = []
+
+    l_inputs = []
+    for i, row in ground_truth_translation.iterrows():
+
+        row_translation_prompt = translation_prompt
+        if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+            row_translation_prompt += "\n" + row["few_shot_examples"]
+
+        l_inputs.append(
+            {
+                "answer": row["answer"],
+                "reference_problem": row["reference_problem"],
+                "reference_solution": row["reference_solution"],
+                "prompt": [
+                    {"role": "system", "content": row_translation_prompt},
+                    {
+                        "role": "user",
+                        "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding.",
+                    },
+                ] + l_prefill,
+            }
+        )
+
+    # Generate the outputs
+    base_url = config["experiment"]["experiment_params"]["base_url"]
+    model_name = config["experiment"]["experiment_params"]["model"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
+
+    if config["experiment"]["experiment_params"].get("use_api_sft_model_for_sampling", False):
+        model_json_path = os.path.join("output", experiment_hash, "data", "sft_model_meta.json")
+        with open(model_json_path, "r") as fp:
+            d_model_json = json.load(fp)
+        model_name = d_model_json["fine_tuned_model"]
+        print(f"Using FT model {model_name}")
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=base_url,
+    )
+ 
+    rate_limit = Semaphore(30)
+    async def run_chat(conversation):
+        max_tokens = 12000
+        if model_name.startswith("claude-3-haiku") or model_name.startswith("claude-3-opus") or model_name.startswith("claude-3-5-haiku"):
+            max_tokens = 4096
+        if model_name.startswith("claude-3-5-sonnet-20241022"):
+            max_tokens = 8192
+
+        for i in range(20):
+            try:
+                async with rate_limit:
+                    resp = await client.chat.completions.create(
+                        model=model_name,
+                        messages=conversation,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+
+                    ret = resp.choices[0].message.content
+                    print(conversation)
+                    print(ret)
+
+                    if translation_prompt_type == "speaking_zero_shot":
+                        ret = fr"\boxed{ret}"
+
+                    return ret
+            except Exception as e:
+                print(e)
+                asyncio.sleep(3)
+
+        print(f"{conversation} \n ran out of retries in limit!")
+        return "Error occurred."
+
+    async def gather_all(tasks):
+        return await tqdm.gather(*tasks)
+
+    l_responses = []
+    for i in range(len(l_inputs)):
+        l_responses.append(run_chat(l_inputs[i]["prompt"]))
+    l_responses = asyncio.run(gather_all(l_responses))
+
+    for i in range(len(l_responses)):
+        l_inputs[i]["model_cot"] = [l_responses[i]]
+
+    df_output = pd.DataFrame(l_inputs)
+    df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
 
 
 @ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)

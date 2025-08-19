@@ -13,7 +13,15 @@ def load_config(config_file):
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
 
+    check_experiment_param_failure(config)
+
     return config
+
+
+def check_experiment_param_failure(config):
+    d_experiment_params = config["experiment"]["experiment_params"]
+    if "sft_params" in d_experiment_params and not (d_experiment_params.get("use_sft_model_for_sampling", False) or d_experiment_params.get("use_api_sft_model_for_sampling", False)):
+        raise Exception(f"{config}\nConfig is using SFT but does not use SFT model for sampling!")
 
 
 def load_stage_executor(stage_config):
