@@ -1,5 +1,7 @@
 set -x
 
+# Warning! router freeze only works on Qwen3!
+
 torchrun    --nproc_per_node=$NUM_GPUS_PER_NODE \
   --nnodes=$NUM_NODES \
   --node_rank=$NODE_RANK \
@@ -17,6 +19,8 @@ torchrun    --nproc_per_node=$NUM_GPUS_PER_NODE \
     model.enable_gradient_checkpointing=True \
     model.use_liger=True \
     model.fsdp_config.model_dtype=bf16 \
+    +model.freeze_router_layers=True \
+    model.strategy=fsdp \
     ulysses_sequence_parallel_size=$SEQ_PARALLEL_SIZE \
     optim.weight_decay=$WEIGHT_DECAY \
     optim.lr=$LR \

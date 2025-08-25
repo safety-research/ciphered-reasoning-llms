@@ -187,7 +187,7 @@ def generate_sft_dataset(config):
         print(f"Got {n_tokens} tokens for {path}")
 
 
-@ray.remote(num_cpus=1, num_gpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def generate_prompted_translation(config):
     from vllm import LLM, SamplingParams
 
@@ -247,10 +247,10 @@ def generate_prompted_translation(config):
     llm = LLM(
         model=sampling_model,
         enforce_eager=True,
-        gpu_memory_utilization=0.7,
+        gpu_memory_utilization=0.8,
         rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
         max_model_len=131072,
-        tensor_parallel_size=4,
+        tensor_parallel_size=2,
     )
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
@@ -293,7 +293,7 @@ def generate_prompted_translation(config):
     kill_vllm_process(llm)
 
 
-@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def judge_cot_style_adherence(config):
     from vllm import LLM, SamplingParams
 
@@ -301,6 +301,7 @@ def judge_cot_style_adherence(config):
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts.translation.judge import followed_encoding_style_judge
+    from prompts import get_translation_prompt
     from utils.vllm import kill_vllm_process
 
     experiment_hash = compute_experiment_hash(config)
@@ -313,21 +314,25 @@ def judge_cot_style_adherence(config):
 
     # Ask LLM for inference
     llm = LLM(
-        model="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
+        model="Qwen/Qwen3-32B-FP8",
         enforce_eager=True,
-        gpu_memory_utilization=0.7,
+        gpu_memory_utilization=0.8,
         rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
         max_model_len=131072,
-        tensor_parallel_size=8,
-        enable_expert_parallel=True,
+        tensor_parallel_size=2
     )
+
+    translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
+    translation_prompt = get_translation_prompt(translation_prompt_type)
+
+    followed_encoding_style_judge = followed_encoding_style_judge + f"\n<instruction>\n{translation_prompt}\n</instruction>"
 
     l_judge_prompts = []
     for (_, generated_cot_row), (_, sft_row) in zip(df_generated_responses.iterrows(), df_sft.iterrows()):
         sft_reference = sft_row['messages'][-1]['content']
 
         for response in generated_cot_row['response']:
-            l_judge_prompts.append([{"role": "user", "content": followed_encoding_style_judge + f"\n<text1>{response}</text1>\n<text2>{sft_reference}"}])
+            l_judge_prompts.append([{"role": "system", "content": "/no_think"}, {"role": "user", "content": followed_encoding_style_judge + f"\n<text>{cot}</text>\n<reference_text>{sft_reference}</reference_text>"}])
 
     judge_sampling_params = SamplingParams(max_tokens=1024)
     outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)
@@ -355,7 +360,7 @@ def judge_cot_style_adherence(config):
     kill_vllm_process(llm)
 
 
-@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def judge_cot_encoding_English_coherence(config):
     from vllm import LLM, SamplingParams
 
@@ -380,19 +385,18 @@ def judge_cot_encoding_English_coherence(config):
 
     # Ask LLM for inference
     llm = LLM(
-        model="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
+        model="Qwen/Qwen3-32B-FP8",
         enforce_eager=True,
-        gpu_memory_utilization=0.7,
+        gpu_memory_utilization=0.8,
         rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
         max_model_len=131072,
-        tensor_parallel_size=8,
-        enable_expert_parallel=True,
+        tensor_parallel_size=2
     )
 
     l_judge_prompts = []
     for responses in l_inverted_response:
         for response in responses:
-            l_judge_prompts.append([{"role": "user", "content": coherent_english_judge + f"\n<text>{response}</text>"}])
+            l_judge_prompts.append([{"role": "system", "content": "/no_think"}, {"role": "user", "content": coherent_english_judge + f"\n<text>{cot}</text>"}])
 
     judge_sampling_params = SamplingParams(max_tokens=1024)
     outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)

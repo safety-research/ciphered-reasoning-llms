@@ -49,7 +49,9 @@ def sft_model(config):
     micro_batch_size = min(micro_batch_size, 32)
 
     seq_parallel_size = 2  # needed to enable sequence packing in verl SFT
-    if ref_model_size > 14:
+
+    is_dense_model = re.search("A[0-9]+B", ref_model) is None
+    if ref_model_size > 14 and is_dense_model:
         micro_batch_size = 2
 
     subprocess.run(
@@ -144,7 +146,7 @@ def openai_sft_model(config):
     # 5) Poll for status and stream new events
     seen_event_ids = set()
     last_status = None
-    for _ in range(1000):
+    for _ in range(100000):
         try:
             job = client.fine_tuning.jobs.retrieve(job.id)
             status = job.status

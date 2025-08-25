@@ -1,0 +1,67 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: mathcot_fewshot_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: prm800k_raw
+    validation_set_frac: 0.2
+
+    sampling_params:
+      temperature: 1.0
+      n: 1
+
+    base_url: https://api.openai.com/v1/
+
+    translation_prompt: ${encoding_scheme}
+
+    n_few_shot_examples: ${n_few_shot_examples}
+
+  experiment_tags:
+
+stages:
+  - name: generate_ground_truth_translation
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs: {}
+
+  - name: generate_fewshot_prompt
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_fewshot_prompt
+      function_kwargs: {}
+
+  - name: generate_sft_dataset
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_sft_dataset
+      function_kwargs: {}
+
+  - name: generate_openai_prompted_translation
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs: {}
+
+  - name: judge_cot_encoding_English_coherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_encoding_English_coherence
+      function_kwargs: {}
+
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+
+  - name: evaluate_math_accuracy
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs: {}

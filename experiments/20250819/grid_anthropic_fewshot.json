@@ -1,0 +1,18 @@
+{
+    "encoding_scheme": [
+        "speaking_identity",
+        "speaking_letter_to_word_with_dot",
+        "speaking_dot_between_chars",
+        "speaking_zero_shot"
+    ],
+    "model_id": [
+        "claude-sonnet-4-20250514",
+        "claude-3-5-haiku-20241022",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-haiku-20240307",
+        "claude-3-opus-20240229"
+    ],
+    "n_few_shot_examples": [
+        1, 2, 4, 8
+    ]
+}

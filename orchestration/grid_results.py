@@ -33,6 +33,7 @@ def run_eval_orchestrator_remote(
 
     import yaml
     from orchestration.experiment_runner import execute_pipeline_remote
+    from orchestration.experiment_meta_saver import compute_experiment_hash
 
     with open(eval_script, "r") as fp:
         config = yaml.safe_load(fp)
@@ -80,6 +81,7 @@ def run_eval_orchestrator_remote(
     # TOOO(sguo35): request CPU & GPU & sonnet resources
     if dry_run:
         print(f"Running {config}")
+        return compute_experiment_hash(config)
     else:
         ray.get(execute_pipeline_remote.remote(config))
 
@@ -233,8 +235,11 @@ def main():
             futures.append((combo, future))
 
         # Collect results
+        l_result = []
         for combo, future in futures:
-            ray.get(future)
+            l_result.append(ray.get(future))
+
+        print(l_result)
 
     finally:
         # Shutdown Ray
