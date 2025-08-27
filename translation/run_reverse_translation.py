@@ -22,7 +22,7 @@ def count_tokens_from_messages(messages):
 
 
 @ray.remote(num_cpus=1)
-def generate_ground_truth_translation(config):
+def generate_ground_truth_translation(config, dataset_override=None):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from encoding_schemes import get_encoding_scheme, is_async_encoding_scheme
@@ -31,7 +31,11 @@ def generate_ground_truth_translation(config):
 
     fn_encoding_scheme = get_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"], config)
 
-    dataset = get_dataset(config["experiment"]["experiment_params"]["dataset"])
+    dataset_name = config["experiment"]["experiment_params"]["dataset"]
+    if dataset_override:
+        dataset_name = dataset_override
+    dataset = get_dataset(dataset_name)
+
 
     experiment_hash = compute_experiment_hash(config)
     target_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
@@ -108,7 +112,7 @@ def generate_fewshot_prompt(config):
 
 
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
-def generate_sft_dataset(config):
+def generate_sft_dataset(config, skip_too_long=True):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -129,7 +133,7 @@ def generate_sft_dataset(config):
 
         l_inputs = []
         for i, row in ground_truth_translation.iterrows():
-            if len(row["reference_text"]) > 4000:
+            if len(row["reference_text"]) > 4000 and skip_too_long:
                 n_skipped += 1
                 continue
 

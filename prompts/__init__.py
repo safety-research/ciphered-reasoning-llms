@@ -89,6 +89,26 @@ from prompts.speaking.letter_substitutions import (
     letter_to_word_with_dot_prompt as speaking_letter_to_word_with_dot_prompt,
 )
 
+# Translations
+from prompts.speaking.translations import (
+    translate_to_French as speaking_translate_to_French,
+    translate_to_Chinese as speaking_translate_to_Chinese,
+    translate_to_Korean as speaking_translate_to_Korean,
+    translate_to_Russian as speaking_translate_to_Russian,
+    translate_to_Arabic as speaking_translate_to_Arabic,
+    translate_to_Adyghe as speaking_translate_to_Adyghe,
+)
+
+# Steg
+from prompts.speaking.steganography import (
+    speaking_math_safety_steg,
+    speaking_math_sonnet_steg,
+    speaking_math_news_article_steg,
+    speaking_math_enterprise_java_steg,
+    speaking_math_weather_report_steg,
+    speaking_math_numbers_sequence_steg
+)
+
 # ---- Central registry ----
 
 PROMPT_MAP = {
@@ -156,6 +176,21 @@ PROMPT_MAP = {
     
     "first_token_of_each_word_model_tokenizer": first_token_of_each_word_model_tokenizer_prompt,
     "reverse_first_token_of_each_word_model_tokenizer": reverse_first_token_of_each_word_model_tokenizer_prompt,
+
+    "speaking_French": speaking_translate_to_French,
+    "speaking_Chinese": speaking_translate_to_Chinese,
+    "speaking_Korean": speaking_translate_to_Korean,
+    "speaking_Russian": speaking_translate_to_Russian,
+    "speaking_Arabic": speaking_translate_to_Arabic,
+    "speaking_Adyghe": speaking_translate_to_Adyghe,
+
+    # steg
+    "speaking_math_safety_steg": speaking_math_safety_steg,
+    "speaking_math_sonnet_steg": speaking_math_sonnet_steg,
+    "speaking_math_news_article_steg": speaking_math_news_article_steg,
+    "speaking_math_enterprise_java_steg": speaking_math_enterprise_java_steg,
+    "speaking_math_weather_report_steg": speaking_math_weather_report_steg,
+    "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg
 }
 
 

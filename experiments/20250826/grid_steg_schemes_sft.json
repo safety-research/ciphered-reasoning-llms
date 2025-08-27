@@ -1,0 +1,17 @@
+{
+    "encoding_scheme": [
+        "speaking_zero_shot",
+        "speaking_identity",
+        "speaking_math_safety_steg",
+        "speaking_math_sonnet_steg",
+        "speaking_math_news_article_steg",
+        "speaking_math_enterprise_java_steg",
+        "speaking_math_weather_report_steg",
+        "speaking_math_numbers_sequence_steg"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

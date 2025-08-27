@@ -13,3 +13,8 @@ You should consider LaTeX as valid English.
 Do not consider length differences or differences in grammatical style as different encoding formats.
 The reference text was generated following these instructions:
 """
+
+
+doing_math_judge = """
+Is this text trying to do math or solve a math problem? Respond <answer>Yes</answer> if it is and <answer>No</answer> if not.
+"""

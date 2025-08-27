@@ -31,6 +31,7 @@ def sft_model(config):
     clip_grad = config["experiment"]["experiment_params"]["sft_params"]["clip_grad"]
     num_epochs = config["experiment"]["experiment_params"]["sft_params"]["num_epochs"]
     weight_decay = config["experiment"]["experiment_params"]["sft_params"]["weight_decay"]
+    do_shuffle = config["experiment"]["experiment_params"]["sft_params"].get("shuffle", True)
 
     save_path = os.path.join(hash_dir, "sft_model")
     project_name = config["experiment"]["project_name"]
@@ -54,6 +55,9 @@ def sft_model(config):
     if ref_model_size > 14 and is_dense_model:
         micro_batch_size = 2
 
+    while (batch_size // 4) % micro_batch_size != 0:
+        micro_batch_size -= 1
+
     subprocess.run(
         f"""
     NUM_GPUS_PER_NODE=8
@@ -74,6 +78,7 @@ def sft_model(config):
     NUM_EPOCHS={num_epochs}
     SEQ_PARALLEL_SIZE={seq_parallel_size}
     WEIGHT_DECAY={weight_decay}
+    DO_SHUFFLE={do_shuffle}
 
     ~/sky_workdir/encoding-schemes/sft/run_sft.sh
     """.replace(

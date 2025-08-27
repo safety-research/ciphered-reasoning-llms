@@ -6,9 +6,8 @@
         "speaking_zero_shot"
     ],
     "model_id": [
-        "gpt-4.1-2025-04-14",
-        "gpt-4.1-mini-2025-04-14",
-        "gpt-4.1-nano-2025-04-14",
-        "gpt-5-chat-latest"
+        "Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-14B-Instruct"
     ]
 }

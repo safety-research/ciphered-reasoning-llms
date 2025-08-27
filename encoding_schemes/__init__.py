@@ -40,6 +40,23 @@ from encoding_schemes.letter_substitutions import (
     inverse_letter_to_word_with_dot,
     inverse_dot_between_chars,
 )
+from encoding_schemes.translations import (
+    translate_to_English,
+    translate_to_French,
+    translate_to_Chinese,
+    translate_to_Korean,
+    translate_to_Russian,
+    translate_to_Arabic,
+    translate_to_Adyghe
+)
+from encoding_schemes.steganography import (
+    speaking_math_safety_steg,
+    speaking_math_sonnet_steg,
+    speaking_math_news_article_steg,
+    speaking_math_enterprise_java_steg,
+    speaking_math_weather_report_steg,
+    speaking_math_numbers_sequence_steg
+)
 
 
 def get_encoding_scheme(encoding_scheme_name, config):
@@ -123,6 +140,22 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "reverse_first_letter_of_each_word": first_letter_of_each_word,
         "first_token_of_each_word_model_tokenizer": tokenizer,
         "reverse_first_token_of_each_word_model_tokenizer": tokenizer,
+
+        # language translations
+        "speaking_French": translate_to_French,
+        "speaking_Chinese": translate_to_Chinese,
+        "speaking_Korean": translate_to_Korean,
+        "speaking_Russian": translate_to_Russian,
+        "speaking_Arabic": translate_to_Arabic,
+        "speaking_Adyghe": translate_to_Adyghe,
+
+        # steg
+        "speaking_math_safety_steg": speaking_math_safety_steg,
+        "speaking_math_sonnet_steg": speaking_math_sonnet_steg,
+        "speaking_math_news_article_steg": speaking_math_news_article_steg,
+        "speaking_math_enterprise_java_steg": speaking_math_enterprise_java_steg,
+        "speaking_math_weather_report_steg": speaking_math_weather_report_steg,
+        "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg
     }
 
     try:
@@ -148,7 +181,23 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
         "speaking_gzip_to_base64_encoded": inverse_gzip_to_base64_encoded,
         "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word, # reverse word letters is symmetric
         "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word, # symmetric
-        "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word # also symmetric
+        "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word, # also symmetric
+
+        "speaking_French": lambda x: translate_to_English(x, "French"),
+        "speaking_Chinese": lambda x: translate_to_English(x, "Chinese"),
+        "speaking_Korean": lambda x: translate_to_English(x, "Korean"),
+        "speaking_Russian": lambda x: translate_to_English(x, "Russian"),
+        "speaking_Arabic": lambda x: translate_to_English(x, "Arabic"),
+        "speaking_Adyghe": lambda x: translate_to_English(x, "Adyghe"),
+
+        # Steg doesn't measure coherence because the expectation is the output will be coherent
+        # and we measure detectability instead
+        "speaking_math_safety_steg": identity,
+        "speaking_math_sonnet_steg": identity,
+        "speaking_math_news_article_steg": identity,
+        "speaking_math_enterprise_java_steg": identity,
+        "speaking_math_weather_report_steg": identity,
+        "speaking_math_numbers_sequence_steg": identity
     }
 
     try:
@@ -158,4 +207,19 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
 
 
 def is_async_encoding_scheme(encoding_scheme_name):
-    return False
+    s_async_encodings = set([
+        "speaking_French",
+        "speaking_Chinese",
+        "speaking_Korean",
+        "speaking_Russian",
+        "speaking_Arabic",
+        "speaking_Adyghe",
+        "speaking_math_safety_steg",
+        "speaking_math_sonnet_steg",
+        "speaking_math_news_article_steg",
+        "speaking_math_enterprise_java_steg",
+        "speaking_math_weather_report_steg",
+        "speaking_math_numbers_sequence_steg"
+    ])
+
+    return encoding_scheme_name in s_async_encodings

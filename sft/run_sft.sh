@@ -15,6 +15,7 @@ torchrun    --nproc_per_node=$NUM_GPUS_PER_NODE \
     data.max_length=32768 \
     data.truncation=error \
     data.multiturn.enable=True \
+    +data.shuffle=$DO_SHUFFLE \
     model.partial_pretrain=$REF_MODEL \
     model.enable_gradient_checkpointing=True \
     model.use_liger=True \
