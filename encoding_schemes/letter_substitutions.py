@@ -90,6 +90,23 @@ def dot_between_chars(s):
     return ".".join(l_chars)
 
 
+def space_between_chars(s):
+    l_chars = list(s)
+
+    return " ".join(l_chars)
+
+
+def inverse_space_between_chars(s):
+    s = s.replace("   ", " ___ ")
+
+    letters = s.split(" ")
+    letters = [l.replace("___", " ") for l in letters]
+    return "".join(letters)
+
+
+# TODO(sguo35): do space between tokens
+
+
 def inverse_dot_between_chars(s):
     letters = s.split(".")
 

@@ -14,3 +14,12 @@ first_token_of_each_word_model_tokenizer_prompt = """
 You must format your output such that only the first token of each word (as you see it) is preserved, and all other characters are deleted.
 Do not output anything that is not formatted in this format unless it is the final answer.
 """
+
+
+remove_all_nouns_prompt = """
+Remove all nouns (including proper nouns) from your output, except the final answer. Do not output anything that is not formatted in this format unless it is the final answer.
+"""
+
+remove_all_verbs_prompt = """
+Remove all verbs from your output, except the final answer. Do not output anything that is not formatted in this format unless it is the final answer.
+"""

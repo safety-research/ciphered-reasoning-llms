@@ -31,6 +31,7 @@ from prompts.reverse_translation.letter_substitutions import (
 from prompts.speaking.letter_substitutions import (
     letter_to_word_with_dot_prompt as speaking_letter_to_word_with_dot_prompt,
     dot_between_chars as speaking_dot_between_chars_prompt,
+    space_between_chars as speaking_space_between_chars_prompt
 )
 
 # Prompts for classic ciphers
@@ -78,6 +79,8 @@ from prompts.translation.destructive_mutations import (
     replace_80pct_letters_with_star_prompt,
     first_letter_of_each_word_prompt,
     first_token_of_each_word_model_tokenizer_prompt,
+    remove_all_nouns_prompt,
+    remove_all_verbs_prompt
 )
 from prompts.reverse_translation.destructive_mutations import (
     reverse_replace_80pct_letters_with_star_prompt,
@@ -97,6 +100,10 @@ from prompts.speaking.translations import (
     translate_to_Russian as speaking_translate_to_Russian,
     translate_to_Arabic as speaking_translate_to_Arabic,
     translate_to_Adyghe as speaking_translate_to_Adyghe,
+    translate_to_Briefhand as speaking_translate_to_Briefhand,
+    translate_to_morse_code as speaking_translate_to_morse_code,
+    translate_to_Python as speaking_translate_to_Python,
+    translate_to_enterprise_Java as speaking_translate_to_enterprise_Java
 )
 
 # Steg
@@ -128,6 +135,8 @@ PROMPT_MAP = {
     "dot_between_chars": dot_between_chars,
     "reverse_dot_between_chars": reverse_dot_between_chars,
     "speaking_dot_between_chars": speaking_dot_between_chars_prompt,
+
+    "speaking_space_between_chars": speaking_space_between_chars_prompt,
 
     "letter_to_poem_first_letter": letter_to_poem_first_letter_prompt,
     "reverse_letter_to_poem_first_letter": reverse_letter_to_poem_first_letter_prompt,
@@ -177,12 +186,19 @@ PROMPT_MAP = {
     "first_token_of_each_word_model_tokenizer": first_token_of_each_word_model_tokenizer_prompt,
     "reverse_first_token_of_each_word_model_tokenizer": reverse_first_token_of_each_word_model_tokenizer_prompt,
 
+    "remove_all_nouns": remove_all_nouns_prompt,
+    "remove_all_verbs": remove_all_verbs_prompt,
+
     "speaking_French": speaking_translate_to_French,
     "speaking_Chinese": speaking_translate_to_Chinese,
     "speaking_Korean": speaking_translate_to_Korean,
     "speaking_Russian": speaking_translate_to_Russian,
     "speaking_Arabic": speaking_translate_to_Arabic,
     "speaking_Adyghe": speaking_translate_to_Adyghe,
+    "speaking_Briefhand": speaking_translate_to_Briefhand,
+    "speaking_Morse_code": speaking_translate_to_morse_code,
+    "speaking_Python": speaking_translate_to_Python,
+    "speaking_enterprise_Java": speaking_translate_to_enterprise_Java,
 
     # steg
     "speaking_math_safety_steg": speaking_math_safety_steg,

@@ -1,0 +1,16 @@
+{
+    "encoding_scheme": [
+        "speaking_space_between_chars",
+        "remove_all_nouns",
+        "remove_all_verbs",
+        "speaking_Briefhand",
+        "speaking_Morse_code",
+        "speaking_Python",
+        "speaking_enterprise_Java"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

@@ -573,3 +573,11 @@ def judge_math_solving_content(config):
     df_generated_cot.to_parquet(generated_cot_path)
 
     kill_vllm_process(llm)
+
+
+def ensure_fireworks_deployment(config):
+    pass
+
+
+def tear_down_fireworks_deployment(config):
+    pass

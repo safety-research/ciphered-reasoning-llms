@@ -1,5 +1,10 @@
 import tiktoken
 from transformers import AutoTokenizer
+import re
+import os
+from openai import AsyncOpenAI
+from asyncio import Semaphore
+import asyncio
 
 
 def replace_80pct_letters_with_star(s):
@@ -62,3 +67,56 @@ def first_token_of_each_word_model_tokenizer(s, model):
         s[i] = first_token_string(s[i], tokenizer)
 
     return " ".join(s)
+
+
+client = AsyncOpenAI(
+    api_key=os.environ['ANTHROPIC_API_KEY'],
+    base_url="https://api.anthropic.com/v1/",
+)
+
+rate_limit = Semaphore(30)
+
+
+async def run_prompt(s, search_tag):
+    for i in range(200):
+        try:
+            async with rate_limit:
+                resp = await client.chat.completions.create(
+                    model="claude-sonnet-4-20250514",
+                    messages=[{
+                        "role": "user",
+                        "content": s
+                    }],
+                    temperature=1.0,
+                    max_tokens=30000
+                )
+
+                ret = resp.choices[0].message.content
+
+                print(s)
+                print(ret)
+
+                result = re.search(f"<{search_tag}>(.*?)</{search_tag}>", ret, re.DOTALL)
+                if not result:
+                    return "askdlfjlkadsjflajdklf"
+                result = result.group(1)
+
+                return result
+
+        except Exception as e:
+            print(e)
+            await asyncio.sleep(3)
+
+    raise Exception("Reached max tries!")
+
+
+async def remove_all_verbs(s):
+    return await run_prompt("""
+    Remove all nouns (including proper nouns) from the following text and output your translation in <translation> tags. Keep anything \\boxed{} as is.
+    """ + "\n" + f"<text>{s}</text>", "translation")
+
+
+async def remove_all_nouns(s):
+    return await run_prompt("""
+    Remove all verbs from the following text and output your translation in <translation> tags. Keep anything \boxed{} as is.
+    """ + "\n" + f"<text>{s}</text>", "translation")

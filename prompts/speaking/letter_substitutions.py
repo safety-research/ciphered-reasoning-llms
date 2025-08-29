@@ -40,3 +40,11 @@ should be converted to "I. .a.m. .a. l.a.r.g.e. .l.a.n.g.u.a.g.e. .m.o.d.e.l"
 
 Do not output anything that is not formatted in this format unless it is the final answer.
 """
+
+
+space_between_chars = """
+You must format your output such that each letter of the text has a space between it and the subsequent letter. For example, the sentence "I am a large language model" 
+should be converted to "I   a.m   a  l a r g e   l a n g u a g e   m o d e l"
+
+Do not output anything that is not formatted in this format unless it is the final answer.
+"""

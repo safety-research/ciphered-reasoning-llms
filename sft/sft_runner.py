@@ -91,23 +91,7 @@ def sft_model(config):
     # last step saved to save_path/last
 
 
-@ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def openai_sft_model(config):
-    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-    from orchestration.experiment_meta_saver import compute_experiment_hash
-    from env.openai import set_openai_key
-
-    experiment_name = config["experiment"]["experiment_name"]
-    experiment_hash = compute_experiment_hash(config)
-    hash_dir = os.path.join("output", experiment_hash)
-
-    model_name = config["experiment"]["experiment_params"]["model"]
-    parquet_path = os.path.join(hash_dir, "data", "sft_train.parquet")
-    output_json_path = os.path.join(hash_dir, "data", "sft_train.jsonl")
-    model_json_path = os.path.join(hash_dir, "data", "sft_model_meta.json")
-    poll_interval_seconds = 5
-
+def convert_sft_parquet_to_jsonl(parquet_path, output_json_path):
     # 1) Read Parquet and convert to JSONL temp file
     df = pd.read_parquet(parquet_path)
 
@@ -120,6 +104,27 @@ def openai_sft_model(config):
             n_rows_written += 1
 
     print(f"[prep] Wrote {n_rows_written} training rows to {output_json_path}")
+
+
+@ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def openai_sft_model(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import convert_sft_parquet_to_jsonl
+    from env.openai import set_openai_key
+
+    experiment_name = config["experiment"]["experiment_name"]
+    experiment_hash = compute_experiment_hash(config)
+    hash_dir = os.path.join("output", experiment_hash)
+
+    model_name = config["experiment"]["experiment_params"]["model"]
+    parquet_path = os.path.join(hash_dir, "data", "sft_train.parquet")
+    output_json_path = os.path.join(hash_dir, "data", "sft_train.jsonl")
+    model_json_path = os.path.join(hash_dir, "data", "sft_model_meta.json")
+    poll_interval_seconds = 5
+
+    convert_sft_parquet_to_jsonl(parquet_path, output_json_path)
 
     set_openai_key()
 
@@ -191,3 +196,91 @@ def openai_sft_model(config):
     with open(model_json_path, "w", encoding="utf-8") as out_f:
         json.dump(result, out_f, indent=2)
     print(f"[done] Wrote result to {model_json_path}: {result}")
+
+
+# TODO(sguo35): implement fireworks ai support
+# 1. check if existing fireworks dataset exists
+# 2. upsert fireworks dataset
+
+# 3. check if existing model exists
+# 4. FT model
+# 5. quantize model
+
+# 6. check if deployment exists
+# 7. start deployment, (load lora layers??), run prompted
+# 8. spin down deployment
+
+
+@ray.remote(num_cpus=1, memory=16 * 1024 * 1024 * 1024)
+def upload_fireworks_dataset(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import convert_sft_parquet_to_jsonl
+    from env.fireworks import set_fireworks_api_key
+
+    set_fireworks_api_key()
+
+    experiment_hash = compute_experiment_hash(config)
+    hash_dir = os.path.join("output", experiment_hash)
+
+    for suffix in ['', '_train']:
+        parquet_path = os.path.join(hash_dir, "data", f"sft{suffix}.parquet")
+        output_json_path = os.path.join(hash_dir, "data", f"sft{suffix}.jsonl")
+
+        convert_sft_parquet_to_jsonl(parquet_path, output_json_path)
+
+        dataset_name = f"{experiment_hash}{suffix}_jeff"
+        dataset_name = dataset_name.replace("_", "-")
+
+        assert os.system(f"""
+        firectl create dataset
+        {dataset_name}
+        {output_json_path}
+        """.replace("\n", "")) == 0
+
+
+@ray.remote(num_cpus=1, memory=32 * 1024 * 1024 * 1024)
+def finetune_model_on_fireworks(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+
+    experiment_hash = compute_experiment_hash(config)
+
+    base_model = config["experiment"]["experiment_params"]["model"]
+
+    project_name = config["experiment"]["project_name"]
+
+    train_dataset_name = f"{experiment_hash}_train_jeff"
+    train_dataset_name = train_dataset_name.replace("_", "-")
+
+    valid_dataset_name = f"{experiment_hash}_jeff"
+    valid_dataset_name = valid_dataset_name.replace("_", "-")
+
+    target_model_name = f"{experiment_hash}-model-jeff"
+    job_id = f"{experiment_hash}"
+
+    # TODO(sguo35): check if the model already exists or if we will overwrite if we train with the same model again?
+
+    # TODO(sguo35): patch LR in here
+    assert os.system(f"""
+    firectl create sftj
+    --base-model {base_model}
+    --job-id {job_id}
+    --dataset {train_dataset_name}
+    --output-model {target_model_name}
+    --learning-rate 2e-6
+    --epochs 1
+    --evaluation-dataset {valid_dataset_name}
+    --max-context-length 32768
+    --lora-rank 32
+    --wandb
+    --wandb-entity sguo35
+    --wandb-api-key {os.environ['WANDB_API_KEY']}
+    --wandb-project {project_name}
+    """.replace("\n", "")) == 0
+
+    # TODO(sguo35): wait for the model to finish training here
+
+    # TODO(sguo35): write the sft_model_meta.json
