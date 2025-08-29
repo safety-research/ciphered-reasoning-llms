@@ -15,7 +15,7 @@ from openai import OpenAI
 from openai.types.fine_tuning import FineTuningJob
 
 
-@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 64)
+@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 512)
 def sft_model(config):
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
@@ -51,9 +51,11 @@ def sft_model(config):
 
     seq_parallel_size = 2  # needed to enable sequence packing in verl SFT
 
+    cpu_offload = False
+
     is_dense_model = re.search("A[0-9]+B", ref_model) is None
     if ref_model_size > 14 and is_dense_model:
-        micro_batch_size = 2
+        cpu_offload = True
 
     while (batch_size // 4) % micro_batch_size != 0:
         micro_batch_size -= 1
@@ -79,6 +81,7 @@ def sft_model(config):
     SEQ_PARALLEL_SIZE={seq_parallel_size}
     WEIGHT_DECAY={weight_decay}
     DO_SHUFFLE={do_shuffle}
+    CPU_OFFLOAD={cpu_offload}
 
     ~/sky_workdir/encoding-schemes/sft/run_sft.sh
     """.replace(
