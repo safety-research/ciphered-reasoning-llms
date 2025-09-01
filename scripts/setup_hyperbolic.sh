@@ -65,9 +65,9 @@ fi
 # sudo vim /etc/exports
 # /scratch 10.15.46.0/24(rw,sync,no_subtree_check,no_root_squash) # this is the client ip
 # /scratch 127.0.0.1(rw,sync,no_subtree_check,no_root_squash) # this is self
+# sudo apt-get install nfs-kernel-server nfs-common -y
 # sudo exportfs -ra
 # sudo mount -t nfs -o vers=3 10.15.14.41:/scratch ~/sky_workdir
-# ln -s /scratch ~/sky_workdir # mount locally via symlink
 
 # manually run apt-get install w/sudo on both machines
 # sudo chown -R ubuntu:ubuntu ~/sky_workdir
@@ -77,4 +77,4 @@ fi
 # ulimit -n 65536 before ray start otherwise cluster will run out of fds!
 # sudo fuser -v /dev/nvidia* 2>&1 | grep python | grep -o -E " [0-9]+ " | xargs kill
 
-# HF_HOME=/scratch/hf_cache
+# export HF_HOME=/scratch/hf_cache

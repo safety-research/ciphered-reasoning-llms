@@ -16,6 +16,8 @@ def get_dataset(dataset_name):
         return get_prm800k_cot()
     elif dataset_name == "prm800k_raw":
         return get_prm800k_raw()
+    elif dataset_name == "prm800k_test_raw":
+        return get_prm800k_raw("test")
     elif dataset_name == "lmsys_chat_1m_1_turn_english":
         return get_lmsys_chat_1m_1_turn_english()
     elif dataset_name == "lmsys_chat_1m_1_turn_english_subset":
