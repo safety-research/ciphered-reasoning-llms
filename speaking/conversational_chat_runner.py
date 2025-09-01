@@ -56,7 +56,9 @@ def generate_ground_truth_translation(config):
         for msg in conversation:
             if msg['role'] == 'assistant':
                 if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
-                    msg['content'] = await fn_encoding_scheme(msg['content'])
+                    content, raw_thinking = await fn_encoding_scheme(msg['content'])
+                    msg['content'] = content
+                    msg['raw_thinking'] = raw_thinking
                 else:
                     msg['content'] = fn_encoding_scheme(msg['content'])
 

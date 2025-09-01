@@ -1,0 +1,45 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: math_cot_sft_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: numina_math_cot_16000
+    validation_set_frac: 0.05
+
+    sampling_params:
+      temperature: 1.0
+      n: 4
+
+    sft_params:
+      batch_size: 192
+      learning_rate: 2e-6
+      clip_grad: 1.0
+      num_epochs: 1
+      weight_decay: 0.0
+      # preshuffled to maintain iid
+      shuffle: False
+
+    translation_prompt: ${encoding_scheme}
+    
+    use_sft_model_for_sampling: True
+
+  experiment_tags:
+    numina_math_cot_rerun: True
+
+stages:
+
+  - name: combine_all_result_dfs
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_translation_math_cot_dfs
+      function_kwargs: {}
+    depends_on: evaluate_bleu_score
+    skip_stages_without_dep: True
+    force_overwrite: True
+
+run_for_hash: aa7f7beeac92e74faacce618ab51f12593e475c9

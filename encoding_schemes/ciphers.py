@@ -1,5 +1,39 @@
 import codecs
 import base64
+import re
+
+def base64_valid_percentage(text: str) -> float:
+    """
+    Calculates the percentage of characters in the given text that are part of valid Base64 sequences.
+    
+    Args:
+        text (str): The input string to analyze.
+    
+    Returns:
+        float: Percentage of characters in valid Base64 sequences.
+    """
+    if not text:
+        return 0.0
+
+    # Base64 pattern: groups of 4 valid chars, possibly ending with '=' or '=='
+    base64_pattern = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
+
+    total_length = len(text)
+    valid_chars = 0
+
+    for match in base64_pattern.finditer(text):
+        candidate = match.group(0)
+        if not candidate:
+            continue
+        try:
+            # Try decoding to verify it's valid base64
+            base64.b64decode(candidate, validate=True)
+            valid_chars += len(candidate)
+        except Exception:
+            continue
+
+    return valid_chars / total_length
+
 
 _BASE64_ALPHABET = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
 
@@ -48,6 +82,10 @@ def inverse_base64_cipher(s):
     return out.decode("utf-8", errors="replace")
 
 
+def calculate_base64_cipher_adherence(s):
+    return base64_valid_percentage(s) >= 0.8
+
+
 def _pad_to_quad(t: str) -> str:
     """Pad with '=' so length is a multiple of 4 (without stripping existing '=')."""
     need = (-len(t)) % 4
@@ -69,12 +107,30 @@ def inverse_base64_2x_cipher(s):
     return inverse_base64_cipher(inverse_base64_cipher(s))
 
 
+def calculate_base64_2x_cipher_adherence(s):
+    if base64_valid_percentage(s) < 0.8:
+        return False
+
+    return calculate_base64_cipher_adherence(inverse_base64_cipher(s))
+
+
 def base64_3x_cipher(s):
     return base64_cipher(base64_cipher(base64_cipher(s)))
 
 
 def inverse_base64_3x_cipher(s):
     return inverse_base64_cipher(inverse_base64_cipher(inverse_base64_cipher(s)))
+
+
+def calculate_base64_3x_cipher_adherence(s):
+    if base64_valid_percentage(s) < 0.8:
+        return False
+
+    s = inverse_base64_cipher(s)
+    if base64_valid_percentage(s) < 0.8:
+        return False
+
+    return calculate_base64_cipher_adherence(inverse_base64_cipher(s))
 
 
 def caesar_cipher(s):

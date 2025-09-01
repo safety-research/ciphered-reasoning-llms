@@ -58,6 +58,7 @@ def load_experiment_steps(config):
     for stage in config["stages"]:
         l_stages.append(
             {
+                **stage,
                 "executor": load_stage_executor(stage),
                 "kwargs": stage["executor"]["function_kwargs"],
                 "name": stage["name"],
@@ -69,20 +70,39 @@ def load_experiment_steps(config):
     return l_stages
 
 
-def execute_pipeline(config):
-    print(f"Executing config \n {config}")
+@ray.remote
+def tag_run_for_hash_run():
+    return
 
+
+def execute_pipeline(config):
     l_stages = load_experiment_steps(config)
 
     experiment_hash = compute_experiment_hash(config)
     checkpoints_dir = os.path.join("output", experiment_hash, "checkpoints")
     os.makedirs(checkpoints_dir, exist_ok=True)
 
+    if config.get("run_for_hash", None) is not None:
+        if experiment_hash != config["run_for_hash"]:
+            print(f"run_for_hash enabled for {config['run_for_hash']}, skipping {experiment_hash}")
+            return
+        
+        ray.get(tag_run_for_hash_run.remote())
+
+    print(f"Executing config \n {config}")
+
     for stage in l_stages:
+        if stage.get("depends_on", None) is not None:
+            prev_stage_dep = stage["depends_on"]
+
+            if not os.path.exists(os.path.join(checkpoints_dir, prev_stage_dep)) and stage.get("skip_stages_without_dep", False):
+                print(f"Skipping {stage['name']} because dependency {prev_stage_dep} checkpoint was not found!")
+                continue
+
         print(f"Running {stage['name']}")
 
         if os.path.exists(os.path.join(checkpoints_dir, stage["name"])):
-            if config["experiment"].get("force_overwrite", False):
+            if config["experiment"].get("force_overwrite", False) or stage.get("force_overwrite", False):
                 print(f"Force overwrite enabled. Overwriting {stage['name']}, hash {experiment_hash}")
             else:
                 print(f"Skipping {stage['name']} because there was already a checkpoint, hash {experiment_hash}.")

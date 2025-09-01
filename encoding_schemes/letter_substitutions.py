@@ -1,44 +1,45 @@
 import random
 
 
-def letter_to_word_with_dot(s):
+d_letter_to_word_with_dot_mapping = {
+    "A": "Apple",
+    "B": "Busy",
+    "C": "Candle",
+    "D": "Dragon",
+    "E": "Echo",
+    "F": "Forest",
+    "G": "Galaxy",
+    "H": "Harbor",
+    "I": "Island",
+    "J": "Journey",
+    "K": "Kite",
+    "L": "Lantern",
+    "M": "Meadow",
+    "N": "North",
+    "O": "Ocean",
+    "P": "Prism",
+    "Q": "Quartz",
+    "R": "River",
+    "S": "Sunset",
+    "T": "Thunder",
+    "U": "Universe",
+    "V": "Velvet",
+    "W": "Willow",
+    "X": "Xylophone",
+    "Y": "Yellow",
+    "Z": "Zephyr",
+}
 
-    d_mapping = {
-        "A": "Apple",
-        "B": "Busy",
-        "C": "Candle",
-        "D": "Dragon",
-        "E": "Echo",
-        "F": "Forest",
-        "G": "Galaxy",
-        "H": "Harbor",
-        "I": "Island",
-        "J": "Journey",
-        "K": "Kite",
-        "L": "Lantern",
-        "M": "Meadow",
-        "N": "North",
-        "O": "Ocean",
-        "P": "Prism",
-        "Q": "Quartz",
-        "R": "River",
-        "S": "Sunset",
-        "T": "Thunder",
-        "U": "Universe",
-        "V": "Velvet",
-        "W": "Willow",
-        "X": "Xylophone",
-        "Y": "Yellow",
-        "Z": "Zephyr",
-    }
+
+def letter_to_word_with_dot(s):
 
     l_chars = list(s)
 
     for i, char in enumerate(l_chars):
         char = char.upper()
 
-        if char in d_mapping:
-            l_chars[i] = d_mapping[char]
+        if char in d_letter_to_word_with_dot_mapping:
+            l_chars[i] = d_letter_to_word_with_dot_mapping[char]
         else:
             pass
 
@@ -46,35 +47,7 @@ def letter_to_word_with_dot(s):
 
 
 def inverse_letter_to_word_with_dot(s):
-    d_mapping = {
-        "A": "Apple",
-        "B": "Busy",
-        "C": "Candle",
-        "D": "Dragon",
-        "E": "Echo",
-        "F": "Forest",
-        "G": "Galaxy",
-        "H": "Harbor",
-        "I": "Island",
-        "J": "Journey",
-        "K": "Kite",
-        "L": "Lantern",
-        "M": "Meadow",
-        "N": "North",
-        "O": "Ocean",
-        "P": "Prism",
-        "Q": "Quartz",
-        "R": "River",
-        "S": "Sunset",
-        "T": "Thunder",
-        "U": "Universe",
-        "V": "Velvet",
-        "W": "Willow",
-        "X": "Xylophone",
-        "Y": "Yellow",
-        "Z": "Zephyr",
-    }
-    d_mapping = {v: k for k, v in d_mapping.items()}
+    d_mapping = {v: k for k, v in d_letter_to_word_with_dot_mapping.items()}
 
     words = s.split(".")
     ret = ""
@@ -84,16 +57,45 @@ def inverse_letter_to_word_with_dot(s):
     return ret
 
 
+def calculate_letter_to_word_with_dot_adherence(s):
+    orig_len = len(s)
+
+    for word in d_letter_to_word_with_dot_mapping.values():
+        s = s.replace(word, "")
+
+    s = s.replace(".", "")
+    s = s.replace(" ", "")
+    s = s.replace("{", "")
+    s = s.replace("}", "")
+    s = s.replace("\\", "")
+    s = s.replace("[", "")
+    s = s.replace("]", "")
+
+    return len(s) / orig_len < 0.3
+
+
 def dot_between_chars(s):
     l_chars = list(s)
 
     return ".".join(l_chars)
 
 
+def calculate_dot_between_chars_adherence(s):
+    num_dots = len([c for c in s if c == '.'])
+
+    return num_dots / len(s) >= 0.3
+
+
 def space_between_chars(s):
     l_chars = list(s)
 
     return " ".join(l_chars)
+
+
+def calculate_space_between_chars_adherence(s):
+    num_spaces = len([c for c in s if c == ' '])
+
+    return num_spaces / len(s) >= 0.3
 
 
 def inverse_space_between_chars(s):

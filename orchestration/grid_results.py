@@ -204,10 +204,16 @@ def main():
     )
     parser.add_argument("--eval-script", help="Path to experiment yaml", required=True)
     parser.add_argument("--dry-run", action="store_true", help="Dry run the script")
+    parser.add_argument("--dump-ray-logs", action="store_true", help="dump all ray task logs")
     args = parser.parse_args()
 
     if args.dry_run:
         os.environ["GLOG_logtostderr"] = "1"
+
+    if args.dump_ray_logs:
+        os.environ["RAY_DEDUP_LOGS"] = "0"
+
+    import ray
 
     # Initialize Ray
     ray.init()

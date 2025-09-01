@@ -13,27 +13,37 @@ from encoding_schemes.ciphers import (
     inverse_base64_cipher,
     inverse_base64_2x_cipher,
     inverse_base64_3x_cipher,
-    inverse_caesar_cipher
+    inverse_caesar_cipher,
+
+    calculate_base64_cipher_adherence,
+    calculate_base64_2x_cipher_adherence,
+    calculate_base64_3x_cipher_adherence
 )
 from encoding_schemes.compression import (
     gzip_to_bpe_encoded,
     gzip_to_base64_encoded,
 
     inverse_gzip_to_bpe_encoded,
-    inverse_gzip_to_base64_encoded
+    inverse_gzip_to_base64_encoded,
+
+    calculate_gzip_base64_adherence
 )
 from encoding_schemes.letter_permutations import (
     reverse_letters_in_each_word,
     random_permute_letters_in_each_word,
     swap_even_odd_letters_in_each_word,
     reverse_fibonacci_indices_in_each_word,
+    
+    calculate_letter_permutation_adherence
 )
 from encoding_schemes.destructive_mutations import (
     replace_80pct_letters_with_star,
     first_letter_of_each_word,
     first_token_of_each_word_model_tokenizer,
     remove_all_verbs,
-    remove_all_nouns
+    remove_all_nouns,
+
+    calculate_zero_shot_adherence
 )
 from encoding_schemes.letter_substitutions import (
     letter_to_word_with_dot,
@@ -42,7 +52,11 @@ from encoding_schemes.letter_substitutions import (
     inverse_letter_to_word_with_dot,
     inverse_dot_between_chars,
     space_between_chars,
-    inverse_space_between_chars
+    inverse_space_between_chars,
+
+    calculate_letter_to_word_with_dot_adherence,
+    calculate_dot_between_chars_adherence,
+    calculate_space_between_chars_adherence
 )
 from encoding_schemes.translations import (
     translate_to_English,
@@ -56,7 +70,10 @@ from encoding_schemes.translations import (
     translate_from_Briefhand,
     translate_to_morse_code,
     translate_to_Python,
-    translate_to_enterprise_Java
+    translate_to_enterprise_Java,
+
+    calculate_Python_adherence,
+    calculate_Java_adherence
 )
 from encoding_schemes.steganography import (
     speaking_math_safety_steg,
@@ -259,3 +276,29 @@ def is_async_encoding_scheme(encoding_scheme_name):
     ])
 
     return encoding_scheme_name in s_async_encodings
+
+
+def get_deterministic_adherence_fn(encoding_scheme_name, config):
+    encoding_map = {
+        "speaking_zero_shot": calculate_zero_shot_adherence,
+        "speaking_identity": lambda x: True,
+        "speaking_letter_to_word_with_dot": calculate_letter_to_word_with_dot_adherence,
+        "speaking_dot_between_chars": calculate_dot_between_chars_adherence,
+        "speaking_space_between_chars": calculate_space_between_chars_adherence,
+        "speaking_base64_cipher": calculate_base64_cipher_adherence,
+        "speaking_base64_2x_cipher": calculate_base64_2x_cipher_adherence,
+        "speaking_base64_3x_cipher": calculate_base64_3x_cipher_adherence,
+        "speaking_gzip_to_base64_encoded": calculate_gzip_base64_adherence,
+        "speaking_reverse_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word),
+        "speaking_swap_even_odd_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, swap_even_odd_letters_in_each_word),
+        "speaking_reverse_fibonacci_indices_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_fibonacci_indices_in_each_word),
+
+        "speaking_Python": calculate_Python_adherence,
+        "speaking_enterprise_Java": calculate_Java_adherence,
+    }
+
+    try:
+        return encoding_map[encoding_scheme_name]
+    except KeyError:
+        print(f"Unknown encoding scheme: {encoding_scheme_name}, returning None and defaulting to prompted judge!")
+        return None

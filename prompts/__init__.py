@@ -144,18 +144,23 @@ PROMPT_MAP = {
     # ciphers
     "rot13_cipher": rot13_cipher_prompt,
     "reverse_rot13_cipher": reverse_rot13_cipher_prompt,
+    "speaking_rot13_cipher": rot13_cipher_prompt,
 
     "base64_cipher": base64_cipher_prompt,
     "reverse_base64_cipher": reverse_base64_cipher_prompt,
+    "speaking_base64_cipher": base64_cipher_prompt,
 
     "base64_2x_cipher": base64_2x_cipher_prompt,
     "reverse_base64_2x_cipher": reverse_base64_2x_cipher_prompt,
+    "speaking_base64_2x_cipher": base64_2x_cipher_prompt,
 
     "base64_3x_cipher": base64_3x_cipher_prompt,
     "reverse_base64_3x_cipher": reverse_base64_3x_cipher_prompt,
+    "speaking_base64_3x_cipher": base64_3x_cipher_prompt,
 
     "caesar_cipher": caesar_cipher_prompt,
     "reverse_caesar_cipher": reverse_caesar_cipher_prompt,
+    "speaking_caesar_cipher": caesar_cipher_prompt,
 
     # compression
     "gzip_to_bpe_encoded": gzip_to_bpe_encoded_prompt,
@@ -163,19 +168,23 @@ PROMPT_MAP = {
 
     "gzip_to_base64_encoded": gzip_to_base64_encoded_prompt,
     "reverse_gzip_to_base64_encoded": reverse_gzip_to_base64_encoded_prompt,
+    "speaking_gzip_to_base64_encoded": gzip_to_base64_encoded_prompt,
 
     # letter permutations
     "reverse_letters_in_each_word": reverse_letters_in_each_word_prompt,
     "reverse_reverse_letters_in_each_word": reverse_reverse_letters_in_each_word_prompt,
+    "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word_prompt,
 
     "random_permute_letters_in_each_word": random_permute_letters_in_each_word_prompt,
     "reverse_random_permute_letters_in_each_word": reverse_random_permute_letters_in_each_word_prompt,
 
     "swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word_prompt,
     "reverse_swap_even_odd_letters_in_each_word": reverse_swap_even_odd_letters_in_each_word_prompt,
+    "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word_prompt,
 
     "reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word_prompt,
     "reverse_reverse_fibonacci_indices_in_each_word": reverse_reverse_fibonacci_indices_in_each_word_prompt,
+    "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word_prompt,
     # destructive mutations
     "replace_80pct_letters_with_star": replace_80pct_letters_with_star_prompt,
     "reverse_replace_80pct_letters_with_star": reverse_replace_80pct_letters_with_star_prompt,

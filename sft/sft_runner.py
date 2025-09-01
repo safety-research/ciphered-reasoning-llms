@@ -32,6 +32,9 @@ def sft_model(config):
     num_epochs = config["experiment"]["experiment_params"]["sft_params"]["num_epochs"]
     weight_decay = config["experiment"]["experiment_params"]["sft_params"]["weight_decay"]
     do_shuffle = config["experiment"]["experiment_params"]["sft_params"].get("shuffle", True)
+    warmup_steps_ratio = config["experiment"]["experiment_params"]["sft_params"].get("warmup_steps_ratio", 0.1)
+    lr_schedule = config["experiment"]["experiment_params"]["sft_params"].get("lr_schedule", "cosine")
+    save_freq = config["experiment"]["experiment_params"]["sft_params"].get("save_freq", -1)
 
     save_path = os.path.join(hash_dir, "sft_model")
     project_name = config["experiment"]["project_name"]
@@ -47,14 +50,14 @@ def sft_model(config):
 
     ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
     micro_batch_size = max(1, batch_size // 4)
-    micro_batch_size = min(micro_batch_size, 32)
+    micro_batch_size = min(micro_batch_size, 16)
 
     seq_parallel_size = 2  # needed to enable sequence packing in verl SFT
 
     cpu_offload = False
 
     is_dense_model = re.search("A[0-9]+B", ref_model) is None
-    if ref_model_size > 14 and is_dense_model:
+    if ref_model_size > 20 and is_dense_model:
         cpu_offload = True
 
     while (batch_size // 4) % micro_batch_size != 0:
@@ -82,6 +85,9 @@ def sft_model(config):
     WEIGHT_DECAY={weight_decay}
     DO_SHUFFLE={do_shuffle}
     CPU_OFFLOAD={cpu_offload}
+    WARMUP_STEPS_RATIO={warmup_steps_ratio}
+    LR_SCHEDULE={lr_schedule}
+    SAVE_FREQ={save_freq}
 
     ~/sky_workdir/encoding-schemes/sft/run_sft.sh
     """.replace(

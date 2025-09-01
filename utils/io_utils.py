@@ -5,6 +5,7 @@ import shutil
 import pandas as pd
 import numpy as np
 import string
+import duckdb
 
 
 @ray.remote(num_cpus=1)
@@ -40,7 +41,7 @@ def combine_parquet_files(config, to_template, shuffle=False, index_lockstep=Fal
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
-    from utils.io_utils import interleave_dataframes
+    from utils.io_utils import interleave_dataframes, read_large_parquet
 
     experiment_hash = compute_experiment_hash(config)
 
@@ -49,7 +50,7 @@ def combine_parquet_files(config, to_template, shuffle=False, index_lockstep=Fal
     for _, file_name in kwargs.items():
         file_name = file_name.replace("__HASH__", experiment_hash)
 
-        l_files.append(pd.read_parquet(file_name))
+        l_files.append(read_large_parquet(file_name))
         print(f"Read {file_name}")
 
     df_combined = pd.concat(l_files, ignore_index=True)
@@ -80,3 +81,96 @@ def combine_parquet_files(config, to_template, shuffle=False, index_lockstep=Fal
     df_combined.to_parquet(to_path)
 
     print(f"Wrote {len(df_combined)} rows {to_path}")
+
+
+@ray.remote(num_cpus=1, memory=64 * 1024 * 1024 * 1024)
+def write_token_count(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from utils.io_utils import read_large_parquet
+
+    from transformers import AutoTokenizer
+
+    model = config["experiment"]["experiment_params"]["model"]
+
+    tokenizer = AutoTokenizer.from_pretrained(model)
+
+    experiment_hash = compute_experiment_hash(config)
+
+    for suffix in ['', '_train']:
+        path = os.path.join('output', experiment_hash, 'data', f'sft{suffix}.parquet')
+
+        df = read_large_parquet(path)
+        df['num_tokens'] = df['messages'].map(lambda x: len(tokenizer.apply_chat_template(x)) )
+
+        df.to_parquet(path)
+
+
+def read_large_parquet(path):
+    return duckdb.query(f"SELECT * FROM read_parquet('{path}')").to_df()
+
+
+@ray.remote(num_cpus=1, memory=64 * 1024 * 1024 * 1024)
+def combine_translation_math_cot_dfs(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+
+    experiment_hash = compute_experiment_hash(config)
+
+    df_gt_translation = pd.read_parquet(os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet"))
+    df_prompted_cot = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
+    df_math_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "math_scores.parquet"))
+    df_prompted_translation = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
+    df_bleu_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "bleu_scores.parquet"))
+
+    l_dfs = [df_gt_translation, df_prompted_cot, df_math_scores, df_prompted_translation, df_bleu_scores]
+    for i in range(len(l_dfs)):
+        for j in range(i + 1, len(l_dfs)):
+            if len(l_dfs[i]) != len(l_dfs[j]):
+                raise Exception(f"{i} and {j} had mismatched len {len(l_dfs[i])} and {len(l_dfs[j])}")
+
+    # df_gt_translation kept as is
+    d_prompted_cot_cols = {
+        "prompt": "cot_prompt",
+        "gt_logprobs": "cot_gt_logprobs",
+        "gt_logprob_tokens": "cot_gt_logprob_tokens",
+        "model_cot": "generated_cots",
+        "followed_encoding_style": "generated_cot_adhered_encoding_style"
+    }
+    df_prompted_cot = df_prompted_cot[list(d_prompted_cot_cols.keys())]
+    df_prompted_cot = df_prompted_cot.rename(columns=d_prompted_cot_cols)
+
+    d_math_score_cols = {
+        "is_corrects": "generated_cot_is_correct"
+    }
+    df_math_scores = df_math_scores[list(d_math_score_cols.keys())]
+    df_math_scores = df_math_scores.rename(columns=d_math_score_cols)
+
+    d_prompted_translation_cols = {
+        # Encoded form (reverse translation)
+        "reference_text": "source_backtranslation_text",
+        "gt_translation": "target_backtranslation_text",
+        "prompt": "backtranslation_prompt",
+        "model_translations": "generated_backtranslations",
+        "gt_logprobs": "backtranslation_gt_logprobs",
+        "gt_logprob_tokens": "backtranslation_gt_logprob_tokens"
+    }
+    df_prompted_translation = df_prompted_translation[list(d_prompted_translation_cols.keys())]
+    df_prompted_translation = df_prompted_translation.rename(columns=d_prompted_translation_cols)
+
+    d_bleu_score_cols = {
+        "bleu_scores": "backtranslation_bleu_scores"
+    }
+    df_bleu_scores = df_bleu_scores[list(d_bleu_score_cols.keys())]
+    df_bleu_scores = df_bleu_scores.rename(columns=d_bleu_score_cols)
+
+    l_dfs_to_concat = [df_gt_translation, df_prompted_cot, df_math_scores, df_prompted_translation, df_bleu_scores]
+    assert len(l_dfs_to_concat) == len(l_dfs)
+    df_final = pd.concat(l_dfs_to_concat, axis='columns')
+
+    target_path = os.path.join("output", experiment_hash, "data", "joined_output.parquet")
+    df_final.to_parquet(target_path)
+    print(f"Wrote {len(df_final)} rows to {target_path}")
+

@@ -45,12 +45,16 @@ def generate_ground_truth_translation(config, dataset_override=None):
     async def gather_all(tasks):
         return await asyncio.gather(*tasks)
 
+    ref_translation_cot = [None for _ in range(len(dataset))]
+
     translated_text = [fn_encoding_scheme(s) for s in dataset]
     if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
         translated_text = asyncio.run(gather_all(translated_text))
+        ref_translation_cot = [t[1] for t in translated_text]
+        translated_text = [t[0] for t in translated_text]
 
     # Note that translated is the reference input and the English is the translated target!
-    df = pd.DataFrame({"reference_text": translated_text, "translated_text": dataset})
+    df = pd.DataFrame({"reference_text": translated_text, "translated_text": dataset, "ref_translation_cot": ref_translation_cot})
 
     if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
         validation_set_frac = config["experiment"]["experiment_params"]["validation_set_frac"]
@@ -112,7 +116,7 @@ def generate_fewshot_prompt(config):
 
 
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
-def generate_sft_dataset(config, skip_too_long=True):
+def generate_sft_dataset(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text"):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -133,25 +137,27 @@ def generate_sft_dataset(config, skip_too_long=True):
 
         l_inputs = []
         for i, row in ground_truth_translation.iterrows():
-            if len(row["reference_text"]) > 4000 and skip_too_long:
+            if len(row[reference_text_col]) > 4000 and skip_too_long:
                 n_skipped += 1
                 continue
 
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+                if reference_text_col != "reference_text" or translated_text_col != "translated_text":
+                    raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
                 row_translation_prompt += "\n" + row["few_shot_examples"]
 
             l_inputs.append(
                 {
-                    "reference_text": row["reference_text"],
-                    "gt_translation": row["translated_text"],
+                    "reference_text": row[reference_text_col],
+                    "gt_translation": row[translated_text_col],
                     "messages": [
                         {"role": "system", "content": row_translation_prompt},
                         {
                             "role": "user",
-                            "content": f"Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row['reference_text']}",
+                            "content": f"Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
                         },
-                        {"role": "assistant", "content": row["translated_text"]},
+                        {"role": "assistant", "content": row[translated_text_col]},
                     ],
                 }
             )
@@ -167,7 +173,7 @@ def generate_sft_dataset(config, skip_too_long=True):
 
 
 @ray.remote(num_cpus=1, num_gpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_prompted_translation(config):
+def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text"):
     from vllm import LLM, SamplingParams
 
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -189,23 +195,27 @@ def generate_prompted_translation(config):
 
     l_inputs = []
     for i, row in ground_truth_translation.iterrows():
-        if len(row["reference_text"]) > 4000:
+        if len(row[reference_text_col]) > 4000 and skip_too_long:
             n_skipped += 1
             continue
 
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+            if reference_text_col != "reference_text" or translated_text_col != "translated_text":
+                raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
+
             row_translation_prompt += "\n" + row["few_shot_examples"]
 
         l_inputs.append(
             {
-                "reference_text": row["reference_text"],
-                "gt_translation": row["translated_text"],
+                # note that reference text here is the encoded form.
+                "reference_text": row[reference_text_col],
+                "gt_translation": row[translated_text_col],
                 "prompt": [
                     {"role": "system", "content": row_translation_prompt},
                     {
                         "role": "user",
-                        "content": f"Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row['reference_text']}",
+                        "content": f"Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
                     },
                 ],
             }

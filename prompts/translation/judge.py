@@ -11,6 +11,7 @@ Determine if the text followed the instructions for encoding format. You may use
 Respond <answer>Yes</answer> if it is and <answer>No</answer> if not. Ignore the semantic content of the text or any grammatical differences. If only the final answer is not formatted correctly, still answer Yes.
 You should consider LaTeX as valid English.
 Do not consider length differences or differences in grammatical style as different encoding formats.
+If you are unsure or the text styles are somewhat close, answer <answer>Yes</answer>.
 The reference text was generated following these instructions:
 """
 

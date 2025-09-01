@@ -45,9 +45,14 @@ def generate_ground_truth_translation(config, dataset_override=None, validation_
     async def gather_all(tasks):
         return await asyncio.gather(*tasks)
 
+    ref_translation_cot = [None for _ in range(len(dataset))]
+
     translated_solution = [fn_encoding_scheme(r["solution"]) for r in dataset]
     if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
         translated_solution = asyncio.run(gather_all(translated_solution))
+
+        ref_translation_cot = [t[1] for t in translated_solution]
+        translated_solution = [t[0] for t in translated_solution]
 
     df = pd.DataFrame(
         {
@@ -56,7 +61,9 @@ def generate_ground_truth_translation(config, dataset_override=None, validation_
             "translated_solution": [
                 sol + f"\n\\boxed{{{r['answer']}}}" for sol, r in zip(translated_solution, dataset)
             ],
+            "raw_translated_cot": translated_solution,
             "answer": [r["answer"] for r in dataset],
+            "ref_translation_cot": ref_translation_cot
         }
     )
 
@@ -203,6 +210,7 @@ def generate_prompted_translation(config):
                 "answer": row["answer"],
                 "reference_problem": row["reference_problem"],
                 "reference_solution": row["reference_solution"],
+                "translated_solution": row["translated_solution"],
                 "prompt": [
                     {"role": "system", "content": row_translation_prompt},
                     {
@@ -248,6 +256,35 @@ def generate_prompted_translation(config):
     l_input_token_lens = [len(o.prompt_token_ids) for o in outputs]
     for i, output in enumerate(outputs):
         l_inputs[i]["model_cot"] = [choice.text for choice in output.outputs]
+
+    # Compute logprobs on GT for perplexity calculations
+    logprobs_sampling_params = SamplingParams(
+        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        max_tokens=1,
+        logprobs=0,
+        prompt_logprobs=1,
+        n=1,
+    )
+    l_logprobs_prompts = []
+    for i, row in enumerate(l_inputs):
+        l_logprobs_prompts.append(
+            [
+                *row["prompt"],
+                {
+                    "role": "assistant",
+                    "content": row["translated_solution"],
+                },
+            ]
+        )
+    logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
+    gt_logprobs = [o.prompt_logprobs[l_input_token_lens[i] :] for o in logprobs]
+    gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
+    gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
+    gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
+
+    for i, gt_logprob in enumerate(gt_logprobs):
+        l_inputs[i]["gt_logprobs"] = gt_logprob
+        l_inputs[i]["gt_logprob_tokens"] = gt_logprob_toks[i]
 
     df_output = pd.DataFrame(l_inputs)
     df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
@@ -377,11 +414,43 @@ def generate_openai_prompted_translation(config):
     df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
 
 
+
+def judge_cot_style_adherence_deterministically(config):
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from encoding_schemes import get_deterministic_adherence_fn
+    
+    fn_adherence_evaluator = get_deterministic_adherence_fn(config["experiment"]["experiment_params"]["encoding_scheme"], config)
+
+    experiment_hash = compute_experiment_hash(config)
+
+    generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    df_generated_cot = pd.read_parquet(generated_cot_path)
+
+    l_judge_scores = []
+    for cots in df_generated_cot['model_cot']:
+        l_instance_scores = []
+        for cot in cots:
+            l_instance_scores.append(1.0 if fn_adherence_evaluator(cot) else 0.0)
+
+        l_judge_scores.append(l_instance_scores)
+
+    df_generated_cot["followed_encoding_style"] = l_judge_scores
+
+    df_generated_cot.to_parquet(generated_cot_path)
+
+
 @ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def judge_cot_style_adherence(config):
     from vllm import LLM, SamplingParams
 
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from encoding_schemes import get_deterministic_adherence_fn
+    from speaking.encoded_cot_runner import judge_cot_style_adherence_deterministically
+
+    if get_deterministic_adherence_fn(config["experiment"]["experiment_params"]["encoding_scheme"], config) is not None:
+        judge_cot_style_adherence_deterministically(config)
+        return
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts.translation.judge import followed_encoding_style_judge

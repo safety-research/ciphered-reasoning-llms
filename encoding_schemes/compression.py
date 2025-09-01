@@ -1,5 +1,49 @@
 import gzip
 import base64
+import io
+
+def percent_gzip_bytestream(data: bytes) -> float:
+    """
+    Return the percentage (0..100) of bytes in `data` that form a valid gzip bytestream.
+
+    - Accepts raw bytes instead of strings.
+    - Scans for gzip members by detecting the magic header (0x1F, 0x8B).
+    - Attempts to decompress from that position; if valid, marks that range as "covered".
+    - Supports concatenated gzip members.
+    - Ignores corrupted or partial members.
+    """
+    n_bytes = len(data)
+    if n_bytes == 0:
+        return 0.0
+
+    covered = bytearray(n_bytes)  # 0/1 flags per byte position
+
+    i = 0
+    end = n_bytes
+    while i < end - 1:
+        # Check for gzip magic header
+        if data[i] == 0x1F and data[i + 1] == 0x8B:
+            bio = io.BytesIO(data[i:])
+            try:
+                with gzip.GzipFile(fileobj=bio) as gf:
+                    # Drain the gzip member fully
+                    while gf.read(1024 * 1024):
+                        pass
+                member_len = bio.tell()
+                if member_len > 0:
+                    # Mark covered bytes
+                    end_idx = min(i + member_len, n_bytes)
+                    covered[i:end_idx] = b"\x01" * (end_idx - i)
+                    i += member_len
+                    continue
+            except (OSError, EOFError):
+                # Invalid gzip starting at this position, move on
+                pass
+        i += 1
+
+    covered_count = int(sum(covered))
+    return covered_count / n_bytes
+
 
 
 def bytes_to_unicode():
@@ -152,3 +196,8 @@ def inverse_gzip_to_base64_encoded(s: str) -> str:
     gz_bytes = _b64_to_bytes_best_effort(s)
     plain_bytes = _gunzip_best_effort(gz_bytes)
     return plain_bytes.decode("utf-8", errors="replace")
+
+
+def calculate_gzip_base64_adherence(s):
+    gz_bytes = _b64_to_bytes_best_effort(s)
+    return percent_gzip_bytestream(gz_bytes) >= 0.5

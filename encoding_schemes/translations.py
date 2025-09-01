@@ -3,6 +3,11 @@ import os
 from openai import AsyncOpenAI
 from asyncio import Semaphore
 import asyncio
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from encoding_schemes.code import python_code_percentage, java_code_percentage
 
 
 client = AsyncOpenAI(
@@ -40,10 +45,10 @@ Translate the following text to {language}. Output your translation in <translat
 
                 result = re.search("<translation>(.*?)</translation>", ret, re.DOTALL)
                 if not result:
-                    return "askdlfjlkadsjflajdklf"
+                    return "askdlfjlkadsjflajdklf", ret
                 result = result.group(1)
 
-                return result
+                return result, ret
 
         except Exception as e:
             print(e)
@@ -53,7 +58,8 @@ Translate the following text to {language}. Output your translation in <translat
 
 
 async def translate_to_English(s, source_language):
-    return await do_translation(s, "English", f"The text is in {source_language}. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.")
+    ret = await do_translation(s, "English", f"The text is in {source_language}. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.")
+    return ret[0]
 
 
 async def translate_to_French(s):
@@ -324,7 +330,8 @@ async def translate_to_Briefhand(s):
 
 
 async def translate_from_Briefhand(s):
-    return await do_translation(s, "English", briefhand_instructions + "\nThe text is in Briefhand. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.")
+    ret = await do_translation(s, "English", briefhand_instructions + "\nThe text is in Briefhand. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.")
+    return ret[0]
 
 
 async def translate_to_morse_code(s):
@@ -335,5 +342,13 @@ async def translate_to_Python(s):
     return await do_translation(s, "Python without comments", "")
 
 
+def calculate_Python_adherence(s):
+    return python_code_percentage(s) >= 0.7
+
+
 async def translate_to_enterprise_Java(s):
     return await do_translation(s, "enterprise Java without comments", "")
+
+
+def calculate_Java_adherence(s):
+    return java_code_percentage(s) >= 0.7

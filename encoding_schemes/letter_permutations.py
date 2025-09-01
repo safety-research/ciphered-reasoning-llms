@@ -1,4 +1,7 @@
 import numpy as np
+import json
+import string
+import os
 
 
 def reverse_letters_in_each_word(s):
@@ -8,6 +11,34 @@ def reverse_letters_in_each_word(s):
 
     return " ".join(s)
 
+
+def get_English_dictionary():
+    with open(os.path.join(os.path.dirname(__file__), "..", "data", "raw", "english_dictionary", "words_dictionary.json"), "r") as fp:
+        return set(json.load(fp).keys())
+
+
+def normalize_word(word):
+    word = word.lower()
+    word = "".join([c for c in word if c in string.ascii_lowercase])
+
+    return word
+
+
+def calculate_letter_permutation_adherence(s, inverse_fn):
+    english_dictionary = get_English_dictionary()
+
+    decoded = inverse_fn(s)
+
+    words = s.split(" ")
+
+    n_valid_words = 0
+    for word in words:
+        word = normalize_word(word)
+        if word in english_dictionary or len(word) == 0:
+            n_valid_words += 1
+
+    return n_valid_words / len(words) >= 0.7
+        
 
 def random_permute_letters_in_each_word(s):
     s = s.split(" ")

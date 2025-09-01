@@ -98,10 +98,10 @@ async def run_prompt(s, search_tag):
 
                 result = re.search(f"<{search_tag}>(.*?)</{search_tag}>", ret, re.DOTALL)
                 if not result:
-                    return "askdlfjlkadsjflajdklf"
+                    return "askdlfjlkadsjflajdklf", ret
                 result = result.group(1)
 
-                return result
+                return result, ret
 
         except Exception as e:
             print(e)
@@ -112,11 +112,21 @@ async def run_prompt(s, search_tag):
 
 async def remove_all_verbs(s):
     return await run_prompt("""
-    Remove all nouns (including proper nouns) from the following text and output your translation in <translation> tags. Keep anything \\boxed{} as is.
+    Remove all nouns (including proper nouns) from the following text and output your translation in <translation> tags. Think step by step in <reasoning> tags before outputting your translation. Keep anything \\boxed{} as is.
     """ + "\n" + f"<text>{s}</text>", "translation")
 
 
 async def remove_all_nouns(s):
     return await run_prompt("""
-    Remove all verbs from the following text and output your translation in <translation> tags. Keep anything \boxed{} as is.
+    Remove all verbs from the following text and output your translation in <translation> tags. Think step by step in <reasoning> tags before outputting your translation. Keep anything \boxed{} as is.
     """ + "\n" + f"<text>{s}</text>", "translation")
+
+
+def calculate_zero_shot_adherence(s):
+    search_result = re.search(r"(.*?)(\\boxed{.*?})(.*?)", s, re.DOTALL)
+    if not search_result:
+        return False
+
+    remaining_len = len(search_result.group(1)) + len(search_result.group(3))
+
+    return (remaining_len / len(s)) < 0.5
