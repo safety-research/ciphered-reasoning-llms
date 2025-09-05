@@ -7,6 +7,7 @@ import tiktoken
 import json
 import re
 import asyncio
+from asyncio import Semaphore
 from openai import AsyncOpenAI
 
 
@@ -98,7 +99,7 @@ def get_few_shot_examples(df, df_sample_group, config):
         s = "\n"
         for j, sample_row in df_sample.iterrows():
             s += (
-                f"Example {j + 1}. Question: {sample_row['reference_problem']} Output: {sample_row['translated_solution']}"
+                f"Example {j + 1}. Normal text: {sample_row['reference_solution']} Encoded text: {sample_row['translated_solution']}"
                 + "\n"
             )
 
@@ -304,8 +305,10 @@ def generate_openai_prompted_translation(config):
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts import get_translation_prompt
     from env.openai import set_openai_key
+    from env.anthropic import set_anthropic_key
 
     set_openai_key()
+    set_anthropic_key()
 
     experiment_hash = compute_experiment_hash(config)
 
@@ -354,6 +357,10 @@ def generate_openai_prompted_translation(config):
     temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
     api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
 
+    d_additional_kwargs = {}
+    if "gpt-5" in model_name:
+        d_additional_kwargs["service_tier"] = "flex"
+
     if config["experiment"]["experiment_params"].get("use_api_sft_model_for_sampling", False):
         model_json_path = os.path.join("output", experiment_hash, "data", "sft_model_meta.json")
         with open(model_json_path, "r") as fp:
@@ -374,14 +381,15 @@ def generate_openai_prompted_translation(config):
         if model_name.startswith("claude-3-5-sonnet-20241022"):
             max_tokens = 8192
 
-        for i in range(200):
+        for i in range(20000):
             try:
                 async with rate_limit:
                     resp = await client.chat.completions.create(
                         model=model_name,
                         messages=conversation,
                         temperature=temperature,
-                        max_completion_tokens=max_tokens
+                        max_completion_tokens=max_tokens,
+                        **d_additional_kwargs
                     )
 
                     ret = resp.choices[0].message.content
@@ -394,10 +402,10 @@ def generate_openai_prompted_translation(config):
                     return ret
             except Exception as e:
                 print(e)
-                await asyncio.sleep(3)
+                await asyncio.sleep(15)
 
         print(f"{conversation} \n ran out of retries in limit!")
-        return "Error occurred."
+        raise Exception(f"Ran out of retries! {conversation}")
 
     async def gather_all(tasks):
         return await tqdm.gather(*tasks)
@@ -409,6 +417,9 @@ def generate_openai_prompted_translation(config):
 
     for i in range(len(l_responses)):
         l_inputs[i]["model_cot"] = [l_responses[i]]
+
+        l_inputs[i]["gt_logprobs"] = [np.nan]
+        l_inputs[i]["gt_logprob_tokens"] = ["a"]
 
     df_output = pd.DataFrame(l_inputs)
     df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
@@ -439,10 +450,8 @@ def judge_cot_style_adherence_deterministically(config):
     df_generated_cot.to_parquet(generated_cot_path)
 
 
-@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+@ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def judge_cot_style_adherence(config):
-    from vllm import LLM, SamplingParams
-
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from encoding_schemes import get_deterministic_adherence_fn
@@ -455,7 +464,6 @@ def judge_cot_style_adherence(config):
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts.translation.judge import followed_encoding_style_judge
     from prompts import get_translation_prompt
-    from utils.vllm import kill_vllm_process
 
     experiment_hash = compute_experiment_hash(config)
 
@@ -465,16 +473,6 @@ def judge_cot_style_adherence(config):
     sft_ref_path = os.path.join("output", experiment_hash, "data", "sft.parquet")
     df_sft = pd.read_parquet(sft_ref_path)
 
-    # Ask LLM for inference
-    llm = LLM(
-        model="Qwen/Qwen3-32B-FP8",
-        enforce_eager=True,
-        gpu_memory_utilization=0.8,
-        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
-        max_model_len=131072,
-        tensor_parallel_size=2
-    )
-
     translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
     translation_prompt = get_translation_prompt(translation_prompt_type)
 
@@ -482,20 +480,61 @@ def judge_cot_style_adherence(config):
 
     l_judge_prompts = []
     for (_, generated_cot_row), (_, sft_row) in zip(df_generated_cot.iterrows(), df_sft.iterrows()):
+        sft_row = df_sft.iloc[0]
+
         sft_reference = sft_row['messages'][-1]['content']
 
         for cot in generated_cot_row['model_cot']:
-            l_judge_prompts.append([{"role": "system", "content": "/no_think"}, {"role": "user", "content": followed_encoding_style_judge + f"\n<text>{cot}</text>\n<reference_text>{sft_reference}</reference_text>"}])
+            l_judge_prompts.append([{"role": "user", "content": followed_encoding_style_judge + f"\n<text>{cot}</text>\n<reference_text>{sft_reference}</reference_text>"}])
 
-    judge_sampling_params = SamplingParams(max_tokens=1024)
-    outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)
+    api_key = os.environ['ANTHROPIC_API_KEY']
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url="https://api.anthropic.com/v1/",
+    )
+
+    async def gather_all(tasks):
+        return await asyncio.gather(*tasks)
+ 
+    rate_limit = Semaphore(30)
+    async def run_chat(conversation):
+        max_tokens = 12000
+
+        for i in range(200):
+            try:
+                async with rate_limit:
+                    resp = await client.chat.completions.create(
+                        model="claude-sonnet-4-20250514",
+                        messages=conversation,
+                        temperature=0.0,
+                        max_completion_tokens=max_tokens
+                    )
+
+                    ret = resp.choices[0].message.content
+                    print(conversation)
+                    print(ret)
+
+                    return ret
+            except Exception as e:
+                print(e)
+                await asyncio.sleep(3)
+
+        print(f"{conversation} \n ran out of retries in limit!")
+        raise Exception(f"Ran out of retries! {conversation}")
+
+    l_responses = []
+    for i in range(len(l_judge_prompts)):
+        l_responses.append(run_chat(l_judge_prompts[i]))
+    l_responses = asyncio.run(gather_all(l_responses))
+
     outputs_idx = 0
     l_judge_scores = []
 
     for cots in df_generated_cot['model_cot']:
         l_instance_scores = []
         for cot in cots:
-            text = outputs[outputs_idx].outputs[0].text
+            text = l_responses[outputs_idx]
             outputs_idx += 1
 
             search_result = re.search("<answer>(.*?)</answer>", text)
@@ -510,13 +549,9 @@ def judge_cot_style_adherence(config):
 
     df_generated_cot.to_parquet(generated_cot_path)
 
-    kill_vllm_process(llm)
 
-
-@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+@ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def judge_cot_encoding_English_coherence(config):
-    from vllm import LLM, SamplingParams
-
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -542,30 +577,56 @@ def judge_cot_encoding_English_coherence(config):
         l_inverted_cot = [gather_all(cots) for cots in l_inverted_cot]
         l_inverted_cot = asyncio.run(gather_all(l_inverted_cot))
 
-    # Ask LLM for inference
-    llm = LLM(
-        model="Qwen/Qwen3-32B-FP8",
-        enforce_eager=True,
-        gpu_memory_utilization=0.8,
-        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
-        max_model_len=131072,
-        tensor_parallel_size=2
-    )
-
     l_judge_prompts = []
     for cots in l_inverted_cot:
         for cot in cots:
-            l_judge_prompts.append([{"role": "system", "content": "/no_think"}, {"role": "user", "content": coherent_english_judge + f"\n<text>{cot}</text>"}])
+            l_judge_prompts.append([{"role": "user", "content": coherent_english_judge + f"\n<text>{cot}</text>"}])
 
-    judge_sampling_params = SamplingParams(max_tokens=1024)
-    outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)
+    api_key = os.environ['ANTHROPIC_API_KEY']
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url="https://api.anthropic.com/v1/",
+    )
+ 
+    rate_limit = Semaphore(30)
+    async def run_chat(conversation):
+        max_tokens = 12000
+
+        for i in range(200):
+            try:
+                async with rate_limit:
+                    resp = await client.chat.completions.create(
+                        model="claude-sonnet-4-20250514",
+                        messages=conversation,
+                        temperature=0.0,
+                        max_completion_tokens=max_tokens
+                    )
+
+                    ret = resp.choices[0].message.content
+                    print(conversation)
+                    print(ret)
+
+                    return ret
+            except Exception as e:
+                print(e)
+                await asyncio.sleep(3)
+
+        print(f"{conversation} \n ran out of retries in limit!")
+        raise Exception(f"Ran out of retries! {conversation}")
+
+    l_responses = []
+    for i in range(len(l_judge_prompts)):
+        l_responses.append(run_chat(l_judge_prompts[i]))
+    l_responses = asyncio.run(gather_all(l_responses))
+
     outputs_idx = 0
     l_judge_scores = []
 
     for cots in l_inverted_cot:
         l_instance_scores = []
         for cot in cots:
-            text = outputs[outputs_idx].outputs[0].text
+            text = l_responses[outputs_idx]
             outputs_idx += 1
 
             search_result = re.search("<answer>(.*?)</answer>", text)
@@ -580,9 +641,6 @@ def judge_cot_encoding_English_coherence(config):
     df["decoded_cot"] = l_inverted_cot
 
     df.to_parquet(target_path)
-
-    kill_vllm_process(llm)
-
 
 
 @ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)

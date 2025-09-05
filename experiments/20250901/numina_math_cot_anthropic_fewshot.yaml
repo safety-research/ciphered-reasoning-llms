@@ -2,7 +2,7 @@ experiment:
   table_name: encoding_schemes
 
   project_name: encoding_schemes
-  experiment_name: math_cot_sft_${encoding_scheme}_${model_id}
+  experiment_name: mathcot_fewshot_${encoding_scheme}_${model_id}
 
   experiment_params:
     model: ${model_id}
@@ -13,20 +13,13 @@ experiment:
 
     sampling_params:
       temperature: 1.0
-      n: 4
+      n: 1
 
-    sft_params:
-      batch_size: 192
-      learning_rate: 2e-6
-      clip_grad: 1.0
-      num_epochs: 1
-      weight_decay: 0.0
-      # preshuffled to maintain iid
-      shuffle: False
+    base_url: https://api.anthropic.com/v1/
 
     translation_prompt: ${encoding_scheme}
-    
-    use_sft_model_for_sampling: True
+
+    n_few_shot_examples: 8
 
   experiment_tags:
     numina_math_cot_rerun: True
@@ -149,16 +142,16 @@ stages:
         dataset_override: prm800k_test_raw
         validation_set_frac_override: 0.0
 
-  - name: sft_model
+  - name: generate_fewshot_prompt
     executor:
-      path: sft/sft_runner.py
-      function_name: sft_model
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_fewshot_prompt
       function_kwargs: {}
 
   - name: generate_math500_cot
     executor:
       path: speaking/encoded_cot_runner.py
-      function_name: generate_prompted_translation
+      function_name: generate_openai_prompted_translation
       function_kwargs: {}
 
   - name: evaluate_math_accuracy
@@ -172,12 +165,11 @@ stages:
       path: speaking/encoded_cot_runner.py
       function_name: judge_cot_style_adherence
       function_kwargs: {}
-    force_overwrite: True
 
   - name: generate_math500_reverse_translation
     executor:
       path: translation/run_reverse_translation.py
-      function_name: generate_prompted_translation
+      function_name: generate_openai_prompted_translation
       function_kwargs:
         skip_too_long: False
         reference_text_col: raw_translated_cot
@@ -194,5 +186,3 @@ stages:
       path: utils/io_utils.py
       function_name: combine_translation_math_cot_dfs
       function_kwargs: {}
-
-    force_overwrite: True

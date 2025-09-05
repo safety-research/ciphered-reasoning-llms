@@ -93,6 +93,9 @@ def write_token_count(config):
     from transformers import AutoTokenizer
 
     model = config["experiment"]["experiment_params"]["model"]
+    if "gpt" in model or "claude" in model:
+        print(f"Overriding tokenizer for {model} with gpt-oss 120b tokenizer because it was detected as a GPT/Claude model!")
+        model = "openai/gpt-oss-120b"
 
     tokenizer = AutoTokenizer.from_pretrained(model)
 
@@ -109,6 +112,24 @@ def write_token_count(config):
 
 def read_large_parquet(path):
     return duckdb.query(f"SELECT * FROM read_parquet('{path}')").to_df()
+
+
+@ray.remote(num_cpus=1, memory=64 * 1024 * 1024 * 1024)
+def take_first_n_rows(config, df_path, n_rows):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from utils.io_utils import read_large_parquet
+
+    experiment_hash = compute_experiment_hash(config)
+
+    df_path = df_path.replace("__HASH__", experiment_hash)
+
+    df = read_large_parquet(df_path)
+
+    df = df.iloc[:n_rows]
+
+    df.to_parquet(df_path)
 
 
 @ray.remote(num_cpus=1, memory=64 * 1024 * 1024 * 1024)

@@ -142,7 +142,7 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
                 if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                    raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
+                    print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
 
                 row_translation_prompt += "\n" + row["few_shot_examples"]
 

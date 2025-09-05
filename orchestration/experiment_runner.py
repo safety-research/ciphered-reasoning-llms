@@ -108,7 +108,10 @@ def execute_pipeline(config):
                 print(f"Skipping {stage['name']} because there was already a checkpoint, hash {experiment_hash}.")
                 continue
 
-        ray.get(stage["executor"].remote(config, **stage["kwargs"]))
+        executor = stage["executor"]
+        if stage.get("task_options", None) is not None:
+            executor = executor.options(**stage["task_options"])
+        ray.get(executor.remote(config, **stage["kwargs"]))
         print(f"Done with {stage['name']}")
 
         with open(os.path.join(checkpoints_dir, stage["name"]), "w") as fp:

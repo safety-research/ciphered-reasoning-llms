@@ -1,0 +1,10 @@
+{
+    "encoding_scheme": [
+        "speaking_letter_to_word_with_dot"
+    ],
+    "model_id": [
+        "gpt-4.1-2025-04-14",
+        "gpt-4.1-mini-2025-04-14",
+        "gpt-4.1-nano-2025-04-14"
+    ]
+}

@@ -144,7 +144,7 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
                 if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                    raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
+                    print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
                 row_translation_prompt += "\n" + row["few_shot_examples"]
 
             l_inputs.append(
@@ -202,7 +202,7 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
             if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
+                print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
 
             row_translation_prompt += "\n" + row["few_shot_examples"]
 
@@ -286,3 +286,233 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
     df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
 
     kill_vllm_process(llm)
+
+
+
+@ray.remote(num_cpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text"):
+    from openai import AsyncOpenAI
+    from asyncio import Semaphore
+    import asyncio
+    from tqdm.asyncio import tqdm
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from prompts import get_translation_prompt
+    from env.openai import set_openai_key
+    from env.anthropic import set_anthropic_key
+
+    set_openai_key()
+    set_anthropic_key()
+
+    experiment_hash = compute_experiment_hash(config)
+
+    ground_truth_translation = pd.read_parquet(
+        os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    )
+
+    # Build the prompt
+    translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+
+    n_skipped = 0
+
+    l_inputs = []
+    for i, row in ground_truth_translation.iterrows():
+        if len(row[reference_text_col]) > 4000 and skip_too_long:
+            n_skipped += 1
+            continue
+
+        row_translation_prompt = translation_prompt
+        if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+            if reference_text_col != "reference_text" or translated_text_col != "translated_text":
+                print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
+
+            row_translation_prompt += "\n" + row["few_shot_examples"]
+
+        l_inputs.append(
+            {
+                # note that reference text here is the encoded form.
+                "reference_text": row[reference_text_col],
+                "gt_translation": row[translated_text_col],
+                "prompt": [
+                    {"role": "system", "content": row_translation_prompt},
+                    {
+                        "role": "user",
+                        "content": f"Do not output anything other than your conversion (do not think before outputting). Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
+                    },
+                ],
+            }
+        )
+
+    print(f"Skipped {n_skipped} rows because they were too long.")
+
+    # Generate the outputs
+    base_url = config["experiment"]["experiment_params"]["base_url"]
+    model_name = config["experiment"]["experiment_params"]["model"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
+
+    d_additional_kwargs = {}
+    if "gpt-5" in model_name:
+        d_additional_kwargs["service_tier"] = "flex"
+
+    if config["experiment"]["experiment_params"].get("use_api_sft_model_for_sampling", False):
+        model_json_path = os.path.join("output", experiment_hash, "data", "sft_model_meta.json")
+        with open(model_json_path, "r") as fp:
+            d_model_json = json.load(fp)
+        model_name = d_model_json["fine_tuned_model"]
+        print(f"Using FT model {model_name}")
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=base_url,
+    )
+ 
+    rate_limit = Semaphore(30)
+    async def run_chat(conversation):
+        max_tokens = 12000
+        if model_name.startswith("claude-3-haiku") or model_name.startswith("claude-3-opus") or model_name.startswith("claude-3-5-haiku"):
+            max_tokens = 4096
+        if model_name.startswith("claude-3-5-sonnet-20241022"):
+            max_tokens = 8192
+
+        for i in range(20000):
+            try:
+                async with rate_limit:
+                    resp = await client.chat.completions.create(
+                        model=model_name,
+                        messages=conversation,
+                        temperature=temperature,
+                        max_completion_tokens=max_tokens,
+                        **d_additional_kwargs
+                    )
+
+                    ret = resp.choices[0].message.content
+                    print(conversation)
+                    print(ret)
+
+                    return ret
+            except Exception as e:
+                print(e)
+                await asyncio.sleep(15)
+
+        print(f"{conversation} \n ran out of retries in limit!")
+        raise Exception(f"Ran out of retries! {conversation}")
+
+    async def gather_all(tasks):
+        return await tqdm.gather(*tasks)
+
+    l_responses = []
+    for i in range(len(l_inputs)):
+        l_responses.append(run_chat(l_inputs[i]["prompt"]))
+    l_responses = asyncio.run(gather_all(l_responses))
+
+    for i in range(len(l_responses)):
+        l_inputs[i]["model_translations"] = [l_responses[i]]
+
+        l_inputs[i]["gt_logprobs"] = [np.nan]
+        l_inputs[i]["gt_logprob_tokens"] = ["a"]
+
+    df_output = pd.DataFrame(l_inputs)
+    df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
+
+
+
+@ray.remote(num_cpus=1, memory=32 * 1024 * 1024 * 1024)
+def compute_openai_validation_loss(config, validation_set_name=None, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", validation_parquet_override=None, use_base_instruct_model=False, override_source_validation_data_template=None):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import get_valid_loss_for_openai_job, openai_sft_model, write_test_sft_data_for_extracting_validation_loss
+    from prompts import get_translation_prompt
+
+    assert validation_set_name is not None
+
+    experiment_hash = compute_experiment_hash(config)
+
+    hash_dir = os.path.join("output", experiment_hash)
+    train_parquet_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_train.parquet")
+    train_json_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_train.jsonl")
+    valid_parquet_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_valid.parquet")
+    valid_json_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_valid.jsonl")
+    model_json_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_meta.json")
+
+    # Build the validation Parquet file from the reference GT file
+    if not override_source_validation_data_template:
+        ground_truth_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+        if validation_parquet_override:
+            ground_truth_path = validation_parquet_override
+        ground_truth_translation = pd.read_parquet(
+            ground_truth_path
+        )
+
+        # Build the prompt
+        translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+
+        n_skipped = 0
+
+        l_inputs = []
+        for i, row in ground_truth_translation.iterrows():
+            if len(row[reference_text_col]) > 4000 and skip_too_long:
+                n_skipped += 1
+                continue
+
+            row_translation_prompt = translation_prompt
+            if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+                if reference_text_col != "reference_text" or translated_text_col != "translated_text":
+                    raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
+
+                row_translation_prompt += "\n" + row["few_shot_examples"]
+
+            l_inputs.append(
+                {
+                    # note that reference text here is the encoded form.
+                    "messages": [
+                        {"role": "system", "content": row_translation_prompt},
+                        {
+                            "role": "user",
+                            "content": f"Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
+                        },
+                        {
+                            "role": "assistant",
+                            "content": row[translated_text_col]
+                        }
+                    ],
+                }
+            )
+
+        print(f"Skipped {n_skipped} rows because they were too long.")
+
+        df_inputs = pd.DataFrame(l_inputs)
+        df_inputs.to_parquet(valid_parquet_path)
+
+        print(f"Wrote {valid_parquet_path}")
+    else:
+        override_source_validation_data_template = override_source_validation_data_template.replace("__HASH__", experiment_hash)
+        valid_parquet_path = override_source_validation_data_template
+
+    write_test_sft_data_for_extracting_validation_loss(train_parquet_path)
+
+    ref_sft_model_meta_path = os.path.join(hash_dir, "data", "sft_model_meta.json")
+    with open(ref_sft_model_meta_path, "r") as fp:
+        d_ref_sft_model_meta = json.load(fp)
+    if use_base_instruct_model:
+        model_override = None
+    else:
+        model_override = d_ref_sft_model_meta["fine_tuned_model"]
+
+    # Kick off hacked FT run
+    ray.get(openai_sft_model.remote(config, train_parquet_path, train_json_path, model_json_path, valid_parquet_path, valid_json_path, finetuning_parameters={
+        "batch_size": 10,
+        "learning_rate_multiplier": 0.0001,
+        "n_epochs": 1
+    }, model_override=model_override))
+
+    valid_loss = get_valid_loss_for_openai_job(model_json_path)
+    with open(model_json_path, "r") as fp:
+        d_model_meta = json.load(fp)
+
+    d_model_meta["valid_loss"] = valid_loss
+    with open(model_json_path, "w") as fp:
+        json.dump(d_model_meta, fp)

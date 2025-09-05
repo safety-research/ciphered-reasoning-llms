@@ -1,6 +1,7 @@
 import gzip
 import base64
 import io
+import zlib
 
 def percent_gzip_bytestream(data: bytes) -> float:
     """
@@ -36,7 +37,7 @@ def percent_gzip_bytestream(data: bytes) -> float:
                     covered[i:end_idx] = b"\x01" * (end_idx - i)
                     i += member_len
                     continue
-            except (OSError, EOFError):
+            except (OSError, EOFError, zlib.error):
                 # Invalid gzip starting at this position, move on
                 pass
         i += 1

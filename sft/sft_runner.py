@@ -8,11 +8,13 @@ import re
 import json
 import time
 import tempfile
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional, Any
 
 import pandas as pd
 from openai import OpenAI
 from openai.types.fine_tuning import FineTuningJob
+
+from pathlib import Path
 
 
 @ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 512)
@@ -115,8 +117,9 @@ def convert_sft_parquet_to_jsonl(parquet_path, output_json_path):
     print(f"[prep] Wrote {n_rows_written} training rows to {output_json_path}")
 
 
-@ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def openai_sft_model(config):
+# TODO(sguo35): add validation set support, LR multiplier support
+@ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
+def openai_sft_model(config, train_parquet_override=None, train_jsonl_override=None, meta_override=None, validation_parquet_template=None,  validation_json_template=None, finetuning_parameters={}, model_override=None):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -128,9 +131,20 @@ def openai_sft_model(config):
     hash_dir = os.path.join("output", experiment_hash)
 
     model_name = config["experiment"]["experiment_params"]["model"]
+    if model_override:
+        model_name = model_override
+
     parquet_path = os.path.join(hash_dir, "data", "sft_train.parquet")
     output_json_path = os.path.join(hash_dir, "data", "sft_train.jsonl")
     model_json_path = os.path.join(hash_dir, "data", "sft_model_meta.json")
+
+    if train_parquet_override:
+        parquet_path = train_parquet_override
+    if train_jsonl_override:
+        output_json_path = train_jsonl_override
+    if meta_override:
+        model_json_path = meta_override
+
     poll_interval_seconds = 5
 
     convert_sft_parquet_to_jsonl(parquet_path, output_json_path)
@@ -148,18 +162,45 @@ def openai_sft_model(config):
     training_file_id = uploaded.id
     print(f"[upload] File uploaded with id: {training_file_id}")
 
+    validation_file_id = None
+    if validation_parquet_template:
+        validation_parquet_template = validation_parquet_template.replace("__HASH__", experiment_hash)
+        validation_json_template = validation_json_template.replace("__HASH__", experiment_hash)
+
+        convert_sft_parquet_to_jsonl(validation_parquet_template, validation_json_template)
+
+        print("[upload] Uploading validation file to OpenAI…")
+        try:
+            with open(validation_json_template, "rb") as fh:
+                uploaded = client.files.create(file=fh, purpose="fine-tune")
+            validation_file_id = uploaded.id
+        except Exception as e:
+            print(e)
+            for _ in range(10):
+                print("!!!!!!!!!")
+            raise e
+        print(f"[upload] File uploaded with id: {validation_file_id}")
+
     # 4) Kick off fine-tuning job
     print(f"[job] Creating fine-tuning job for base model: {model_name}")
-    job: FineTuningJob = client.fine_tuning.jobs.create(
-        model=model_name,
-        training_file=training_file_id,
-        hyperparameters={
-            "n_epochs": 1,
-            "batch_size": 64
-        },
-        seed=42,
-        suffix="jeff-encoding-schemes"
-    )
+    try:
+        job: FineTuningJob = client.fine_tuning.jobs.create(
+            model=model_name,
+            training_file=training_file_id,
+            validation_file=validation_file_id,
+            hyperparameters={
+                "n_epochs": config["experiment"]["experiment_params"].get("sft_params", {}).get("num_epochs", 1),
+                "batch_size": config["experiment"]["experiment_params"].get("sft_params", {}).get("batch_size", 64),
+                **finetuning_parameters
+            },
+            seed=42,
+            suffix="jeff-encoding-schemes"
+        )
+    except Exception as e:
+        print(e)
+        for _ in range(10):
+            print("!!!!!!!!!")
+        raise e
     print(f"[job] Job created: {job.id} (status: {job.status})")
 
     # 5) Poll for status and stream new events
@@ -205,6 +246,116 @@ def openai_sft_model(config):
     with open(model_json_path, "w", encoding="utf-8") as out_f:
         json.dump(result, out_f, indent=2)
     print(f"[done] Wrote result to {model_json_path}: {result}")
+
+
+def write_test_sft_data_for_extracting_validation_loss(path):
+    l_data = [
+        {
+            "messages": [
+                {
+                    "content": "This is a test.",
+                    "role": "user"
+                },
+                {
+                    "content": "Hello world!",
+                    "role": "assistant"
+                }
+            ]
+        }
+        for _ in range(10)
+    ]
+    pd.DataFrame(l_data).to_parquet(path)
+
+
+def get_valid_loss_for_openai_job(
+    json_path: str | Path,
+    *,
+    client: Optional[OpenAI] = None,
+) -> Optional[float]:
+    """
+    Read a fine-tuning job_id from a JSON file and return the `full_valid_loss`
+    from the checkpoint with the highest step number.
+
+    Args:
+        json_path: Path to a JSON file containing at least {"job_id": "..."}.
+        api_key: Optional API key to construct a client. If omitted, the client
+                 will use the OPENAI_API_KEY environment variable.
+        client:   Optionally pass a pre-configured OpenAI client. If provided,
+                 `api_key` is ignored.
+
+    Returns:
+        The `full_valid_loss` (float) from the checkpoint with the highest step,
+        or None if no checkpoints or metric is available.
+
+    Raises:
+        FileNotFoundError: If `json_path` does not exist.
+        ValueError: If `job_id` is missing or invalid.
+        openai.OpenAIError: On API errors.
+    """
+    from env.openai import set_openai_key
+
+    set_openai_key()
+
+    # Build / reuse client
+    client = client or OpenAI()
+
+    # Load job_id
+    p = Path(json_path)
+    if not p.exists():
+        raise FileNotFoundError(f"JSON file not found: {p}")
+    with p.open("r", encoding="utf-8") as f:
+        payload: dict[str, Any] = json.load(f)
+
+    job_id = payload.get("job_id")
+    if not isinstance(job_id, str) or not job_id.strip():
+        raise ValueError("JSON must contain a non-empty string field 'job_id'.")
+
+    # List checkpoints (handle pagination)
+    checkpoints_iter = client.fine_tuning.jobs.checkpoints.list(
+        fine_tuning_job_id=job_id
+    )
+
+    best_cp: Optional[dict] = None
+    best_step: int = -1
+
+    for cp in checkpoints_iter:
+        # Be defensive about field names/types
+        step = (
+            getattr(cp, "step_number", None)
+            or getattr(cp, "step", None)
+            or (isinstance(cp, dict) and (cp.get("step_number") or cp.get("step")))
+        )
+        try:
+            step = int(step) if step is not None else -1
+        except (TypeError, ValueError):
+            step = -1
+
+        if step > best_step and cp.metrics.full_valid_loss is not None:
+            best_step = step
+            # Normalize to dict for easy access
+            best_cp = cp if isinstance(cp, dict) else cp.__dict__
+
+        print(cp)
+
+    if best_cp is None:
+        raise Exception(f"Expected best checkpoint to not be None!")
+
+    print(best_cp)
+    # Extract metrics.full_valid_loss
+    metrics = (
+        best_cp.get("metrics")
+        if isinstance(best_cp, dict)
+        else getattr(best_cp, "metrics", None)
+    ) or {}
+
+    print(metrics)
+    fvl = metrics.full_valid_loss
+    assert fvl is not None
+    print(f"job id={job_id} fvl={fvl}")
+    for _ in range(10):
+        print("!!!!!!")
+
+    return fvl
 
 
 # TODO(sguo35): implement fireworks ai support

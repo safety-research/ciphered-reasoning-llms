@@ -83,7 +83,11 @@ def run_eval_orchestrator_remote(
         print(f"Running {config}")
         return compute_experiment_hash(config)
     else:
+        # try:
         ray.get(execute_pipeline_remote.remote(config))
+        # except Exception as e:
+        #     print(e)
+        #     print("!!!!!!!!")
 
 
 def generate_param_combinations(
