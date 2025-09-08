@@ -133,7 +133,7 @@ def take_first_n_rows(config, df_path, n_rows):
 
 
 @ray.remote(num_cpus=1, memory=64 * 1024 * 1024 * 1024)
-def combine_translation_math_cot_dfs(config):
+def combine_translation_math_cot_dfs(config, fake_prompted_cot_math_dfs=False):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -141,8 +141,29 @@ def combine_translation_math_cot_dfs(config):
     experiment_hash = compute_experiment_hash(config)
 
     df_gt_translation = pd.read_parquet(os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet"))
-    df_prompted_cot = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
-    df_math_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "math_scores.parquet"))
+
+    d_prompted_cot_cols = {
+        "prompt": "cot_prompt",
+        "gt_logprobs": "cot_gt_logprobs",
+        "gt_logprob_tokens": "cot_gt_logprob_tokens",
+        "model_cot": "generated_cots",
+        "followed_encoding_style": "generated_cot_adhered_encoding_style"
+    }
+    d_math_score_cols = {
+        "is_corrects": "generated_cot_is_correct"
+    }
+    if fake_prompted_cot_math_dfs:
+        df_prompted_cot = pd.DataFrame({
+            k : [np.nan for _ in range(len(df_gt_translation))]
+            for k in d_prompted_cot_cols.keys()
+        })
+        df_math_scores = pd.DataFrame({
+            k : [np.nan for _ in range(len(df_gt_translation))]
+            for k in d_math_score_cols.keys()
+        })
+    else:
+        df_prompted_cot = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
+        df_math_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "math_scores.parquet"))
     df_prompted_translation = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
     df_bleu_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "bleu_scores.parquet"))
 
@@ -153,19 +174,9 @@ def combine_translation_math_cot_dfs(config):
                 raise Exception(f"{i} and {j} had mismatched len {len(l_dfs[i])} and {len(l_dfs[j])}")
 
     # df_gt_translation kept as is
-    d_prompted_cot_cols = {
-        "prompt": "cot_prompt",
-        "gt_logprobs": "cot_gt_logprobs",
-        "gt_logprob_tokens": "cot_gt_logprob_tokens",
-        "model_cot": "generated_cots",
-        "followed_encoding_style": "generated_cot_adhered_encoding_style"
-    }
     df_prompted_cot = df_prompted_cot[list(d_prompted_cot_cols.keys())]
     df_prompted_cot = df_prompted_cot.rename(columns=d_prompted_cot_cols)
 
-    d_math_score_cols = {
-        "is_corrects": "generated_cot_is_correct"
-    }
     df_math_scores = df_math_scores[list(d_math_score_cols.keys())]
     df_math_scores = df_math_scores.rename(columns=d_math_score_cols)
 

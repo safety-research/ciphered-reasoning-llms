@@ -1,0 +1,30 @@
+{
+    "encoding_scheme": [
+        "speaking_letter_to_word_with_dot",
+        "speaking_dot_between_chars",
+        "speaking_space_between_chars",
+        "remove_all_verbs",
+        "remove_all_nouns",
+        "speaking_French",
+        "speaking_Chinese",
+        "speaking_Korean",
+        "speaking_Russian",
+        "speaking_Arabic",
+        "speaking_Adyghe",
+        "speaking_Morse_code",
+        "speaking_Python",
+        "speaking_enterprise_Java",
+        "speaking_rot13_cipher",
+        "speaking_base64_cipher",
+        "speaking_base64_2x_cipher",
+        "speaking_base64_3x_cipher",
+        "speaking_caesar_cipher",
+        "speaking_gzip_to_base64_encoded",
+        "speaking_reverse_letters_in_each_word",
+        "speaking_swap_even_odd_letters_in_each_word",
+        "speaking_reverse_fibonacci_indices_in_each_word"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

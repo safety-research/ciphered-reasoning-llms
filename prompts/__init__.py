@@ -116,6 +116,25 @@ from prompts.speaking.steganography import (
     speaking_math_numbers_sequence_steg
 )
 
+# Themes
+from prompts.speaking.themes import (
+    speaking_paraphrase_naive,
+    speaking_pirate_speak,
+    speaking_leet_speak,
+    speaking_yoda_speak,
+    speaking_shakespearean_text,
+    speaking_insert_tweet,
+    speaking_python_snippet_comment,
+    speaking_croissant_news_article,
+    speaking_math_textbook_article,
+    speaking_five_emojis,
+    speaking_replace_math_content_with_black_box
+)
+
+from prompts.reverse_translation.general import (
+    general_decoding_prompt
+)
+
 # ---- Central registry ----
 
 PROMPT_MAP = {
@@ -215,7 +234,22 @@ PROMPT_MAP = {
     "speaking_math_news_article_steg": speaking_math_news_article_steg,
     "speaking_math_enterprise_java_steg": speaking_math_enterprise_java_steg,
     "speaking_math_weather_report_steg": speaking_math_weather_report_steg,
-    "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg
+    "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg,
+    
+    # Themes
+    "speaking_paraphrase_naive": speaking_paraphrase_naive,
+    "speaking_pirate_speak": speaking_pirate_speak,
+    "speaking_leet_speak": speaking_leet_speak,
+    "speaking_yoda_speak": speaking_yoda_speak,
+    "speaking_shakespearean_text": speaking_shakespearean_text,
+    "speaking_insert_tweet": speaking_insert_tweet,
+    "speaking_python_snippet_comment": speaking_python_snippet_comment,
+    "speaking_croissant_news_article": speaking_croissant_news_article,
+    "speaking_math_textbook_article": speaking_math_textbook_article,
+    "speaking_five_emojis": speaking_five_emojis,
+    "speaking_replace_math_content_with_black_box": speaking_replace_math_content_with_black_box,
+
+    "reverse_translation_general_decoding": general_decoding_prompt
 }
 
 

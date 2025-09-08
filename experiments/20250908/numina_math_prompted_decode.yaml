@@ -2,7 +2,7 @@ experiment:
   table_name: encoding_schemes
 
   project_name: encoding_schemes
-  experiment_name: math_cot_sft_${encoding_scheme}_${model_id}
+  experiment_name: mathcot_prompteddecode_${encoding_scheme}_${model_id}
 
   experiment_params:
     model: ${model_id}
@@ -13,18 +13,10 @@ experiment:
 
     sampling_params:
       temperature: 1.0
-      n: 1
-
-    sft_params:
-      batch_size: 18
-      num_epochs: 1
-      
-    base_url: https://api.openai.com/v1/
+      n: 4
 
     translation_prompt: ${encoding_scheme}
-
-    use_api_sft_model_for_sampling: True
-
+    
   experiment_tags:
     numina_math_cot_rerun: True
 
@@ -146,66 +138,15 @@ stages:
         dataset_override: prm800k_test_raw
         validation_set_frac_override: 0.0
 
-  - name: truncate_sft_dataset
-    executor:
-      path: utils/io_utils.py
-      function_name: take_first_n_rows
-      function_kwargs:
-        df_path: output/__HASH__/data/sft_train.parquet
-        n_rows: 9120 # df already sorted + interleaved with translation augmentation
-
-  - name: openai_sft_model
-    executor:
-      path: sft/sft_runner.py
-      function_name: openai_sft_model
-      function_kwargs: {}
-    
-  - name: compute_reverse_translation_validation_loss
-    executor:
-      path: translation/run_reverse_translation.py
-      function_name: compute_openai_validation_loss
-      function_kwargs:
-        validation_set_name: reverse_translation_math500
-        skip_too_long: False
-        reference_text_col: raw_translated_cot
-        translated_text_col: reference_solution
-
-  - name: compute_numinamath_validation_loss
-    executor:
-      path: translation/run_reverse_translation.py
-      function_name: compute_openai_validation_loss
-      function_kwargs:
-        validation_set_name: numinamath_validation
-        override_source_validation_data_template: output/__HASH__/data/sft.parquet
-
-  - name: generate_math500_cot
-    executor:
-      path: speaking/encoded_cot_runner.py
-      function_name: generate_openai_prompted_translation
-      function_kwargs: {}
-
-  - name: evaluate_math_accuracy
-    executor:
-      path: evaluation/metrics/math_accuracy.py
-      function_name: evaluate_math_accuracy
-      function_kwargs: {}
-
-  - name: judge_cot_style_adherence
-    executor:
-      path: speaking/encoded_cot_runner.py
-      function_name: judge_cot_style_adherence
-      function_kwargs: {}
-    task_options:
-      num_gpus: 0
-
   - name: generate_math500_reverse_translation
     executor:
       path: translation/run_reverse_translation.py
-      function_name: generate_openai_prompted_translation
+      function_name: generate_prompted_translation
       function_kwargs:
         skip_too_long: False
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
+        translation_prompt_override: reverse_translation_general_decoding
 
   - name: evaluate_bleu_score
     executor:
@@ -217,4 +158,7 @@ stages:
     executor:
       path: utils/io_utils.py
       function_name: combine_translation_math_cot_dfs
-      function_kwargs: {}
+      function_kwargs:
+        fake_prompted_cot_math_dfs: True
+
+    force_overwrite: True

@@ -16,6 +16,25 @@ from openai.types.fine_tuning import FineTuningJob
 
 from pathlib import Path
 
+import numpy as np
+import os
+import sys
+import ray
+import pandas as pd
+import subprocess
+import re
+import json
+import time
+import tempfile
+from typing import Union, List, Dict, Optional, Any
+from pathlib import Path
+import requests
+
+
+import pandas as pd
+from together import Together
+
+
 
 @ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 512)
 def sft_model(config):
@@ -65,9 +84,11 @@ def sft_model(config):
     while (batch_size // 4) % micro_batch_size != 0:
         micro_batch_size -= 1
 
+    n_gpus = len(ray.get_gpu_ids())
+
     subprocess.run(
         f"""
-    NUM_GPUS_PER_NODE=8
+    NUM_GPUS_PER_NODE={n_gpus}
     NUM_NODES=1
     NODE_RANK=0
     MASTER_ADDR=127.0.0.1
@@ -115,6 +136,16 @@ def convert_sft_parquet_to_jsonl(parquet_path, output_json_path):
             n_rows_written += 1
 
     print(f"[prep] Wrote {n_rows_written} training rows to {output_json_path}")
+
+
+def together_retrieve_endpoint_information(endpointId):
+    url = f"https://api.together.xyz/v1/endpoints/{endpointId}"
+
+    headers = {"Authorization": f"Bearer {os.environ['TOGETHER_API_KEY']}"}
+
+    response = requests.get(url, headers=headers)
+
+    return response.json()
 
 
 # TODO(sguo35): add validation set support, LR multiplier support
@@ -444,3 +475,400 @@ def finetune_model_on_fireworks(config):
     # TODO(sguo35): wait for the model to finish training here
 
     # TODO(sguo35): write the sft_model_meta.json
+
+
+@ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
+def together_sft_model(config, train_parquet_override=None, train_jsonl_override=None, meta_override=None, 
+                      validation_parquet_template=None, validation_json_template=None, 
+                      finetuning_parameters={}, model_override=None):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+    
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import convert_sft_parquet_to_jsonl, together_retrieve_endpoint_information
+    
+    experiment_name = config["experiment"]["experiment_name"]
+    experiment_hash = compute_experiment_hash(config)
+    hash_dir = os.path.join("output", experiment_hash)
+    
+    model_name = config["experiment"]["experiment_params"]["model"]
+    if model_override:
+        model_name = model_override
+    
+    parquet_path = os.path.join(hash_dir, "data", "sft_train.parquet")
+    output_json_path = os.path.join(hash_dir, "data", "sft_train.jsonl")
+    model_json_path = os.path.join(hash_dir, "data", "sft_model_meta.json")
+    
+    if train_parquet_override:
+        parquet_path = train_parquet_override
+    if train_jsonl_override:
+        output_json_path = train_jsonl_override
+    if meta_override:
+        model_json_path = meta_override
+    
+    poll_interval_seconds = 5
+    
+    convert_sft_parquet_to_jsonl(parquet_path, output_json_path)
+    
+    # Initialize Together client
+    api_key = os.environ.get("TOGETHER_API_KEY")
+    if not api_key:
+        raise ValueError("TOGETHER_API_KEY environment variable not set")
+    
+    client = Together(api_key=api_key)
+    
+    # # Upload training file
+    print("[upload] Uploading training file to Together AI…")
+    training_file = client.files.upload(file=output_json_path)
+    training_file_id = training_file.id
+    print(f"[upload] File uploaded with id: {training_file_id}")
+    
+    validation_file_id = None
+    if validation_parquet_template:
+        validation_parquet_template = validation_parquet_template.replace("__HASH__", experiment_hash)
+        validation_json_template = validation_json_template.replace("__HASH__", experiment_hash)
+        
+        convert_sft_parquet_to_jsonl(validation_parquet_template, validation_json_template)
+        
+        print("[upload] Uploading validation file to Together AI…")
+        try:
+            validation_file = client.files.upload(file=validation_json_template)
+            validation_file_id = validation_file.id
+        except Exception as e:
+            print(e)
+            for _ in range(10):
+                print("!!!!!!!!!")
+            raise e
+        print(f"[upload] File uploaded with id: {validation_file_id}")
+    
+    # Prepare hyperparameters
+    hyperparameters = {
+        "n_epochs": config["experiment"]["experiment_params"].get("sft_params", {}).get("num_epochs", 1),
+        "learning_rate": config["experiment"]["experiment_params"].get("sft_params", {}).get("learning_rate", 2e-5),
+        **finetuning_parameters,
+        **config["experiment"]["experiment_params"].get("sft_params", {})
+    }
+    
+    # Create fine-tuning job
+    print(f"[job] Creating fine-tuning job for base model: {model_name}")
+    try:
+        job_params = {
+            "model": model_name,
+            "training_file": training_file_id,
+            "suffix": f"jeff-encoding-schemes-{experiment_hash[:8]}",
+            "wandb_api_key": os.environ.get("WANDB_API_KEY", ""),
+            "lora": False,
+            **hyperparameters
+        }
+        
+        if validation_file_id:
+            job_params["validation_file"] = validation_file_id
+            
+        # Add any additional hyperparameters from finetuning_parameters
+        for key, value in finetuning_parameters.items():
+            job_params[key] = value
+        
+        job = client.fine_tuning.create(**job_params)
+        job_id = job.id
+    except Exception as e:
+        print(e)
+        for _ in range(10):
+            print("!!!!!!!!!")
+        raise e
+    print(f"[job] Job created: {job_id} (status: {job.status if hasattr(job, 'status') else 'submitted'})")
+    
+    # Poll for status
+    last_status = None
+    seen_events = set()
+
+    for _ in range(100000):
+        try:
+            # Retrieve job status
+            job = client.fine_tuning.retrieve(id=job_id)
+            status = job.status if hasattr(job, 'status') else 'unknown'
+            
+            if status != last_status:
+                print(f"[status] {status}")
+                last_status = status
+            
+            # Check for events/logs if available
+            if hasattr(job, 'events') and job.events:
+                for event in job.events:
+                    event_id = f"{event.created_at}_{event.message}"
+                    if event_id not in seen_events:
+                        seen_events.add(event_id)
+                        ts = event.created_at
+                        level = event.level
+                        message = event.message
+                        print(f"[event {ts}] {level}: {message}")
+            
+            # Check if job is complete
+            if status in ("succeeded", "completed", "failed", "cancelled"):
+                break
+                
+            time.sleep(poll_interval_seconds)
+        except Exception as e:
+            print(f"Error checking job status: {e}")
+            time.sleep(poll_interval_seconds)
+    
+    # Handle final result
+    if status not in ("succeeded", "completed"):
+        raise RuntimeError(f"Fine-tuning did not succeed: status={status}")
+
+    fine_tuned_model = job.output_name
+    
+    result = {"fine_tuned_model": fine_tuned_model, "job_id": job_id}
+    with open(model_json_path, "w", encoding="utf-8") as out_f:
+        json.dump(result, out_f, indent=2)
+    print(f"[done] Wrote result to {model_json_path}: {result}")
+
+
+def get_valid_loss_for_together_job(
+    json_path: str | Path,
+    *,
+    client: Optional[Together] = None,
+) -> Optional[float]:
+    """
+    Read a fine-tuning job_id from a JSON file and return the validation loss
+    from the Together AI fine-tuning job.
+    
+    Args:
+        json_path: Path to a JSON file containing at least {"job_id": "..."}.
+        client: Optionally pass a pre-configured Together client.
+    
+    Returns:
+        The validation loss (float) from the fine-tuning job,
+        or None if no validation metrics are available.
+    
+    Raises:
+        FileNotFoundError: If `json_path` does not exist.
+        ValueError: If `job_id` is missing or invalid.
+    """
+    # Build / reuse client
+    api_key = os.environ.get("TOGETHER_API_KEY")
+    if not api_key and not client:
+        raise ValueError("TOGETHER_API_KEY environment variable not set")
+    
+    client = client or Together(api_key=api_key)
+    
+    # Load job_id
+    p = Path(json_path)
+    if not p.exists():
+        raise FileNotFoundError(f"JSON file not found: {p}")
+    with p.open("r", encoding="utf-8") as f:
+        payload: dict[str, Any] = json.load(f)
+    
+    job_id = payload.job_id
+    if not isinstance(job_id, str) or not job_id.strip():
+        raise ValueError("JSON must contain a non-empty string field 'job_id'.")
+    
+    # Retrieve job details
+    job = client.fine_tuning.retrieve(id=job_id)
+    
+    # Extract validation loss if available
+    validation_loss = None
+    
+    # Check various possible locations for validation metrics
+    if hasattr(job, 'training_metrics'):
+        metrics = job.training_metrics
+        if isinstance(metrics, dict):
+            validation_loss = metrics.eval_loss or metrics.validation_loss
+        elif isinstance(metrics, list) and metrics:
+            # Get the last epoch's validation loss
+            last_metrics = metrics[-1]
+            if isinstance(last_metrics, dict):
+                validation_loss = last_metrics.eval_loss or last_metrics.validation_loss
+    
+    if hasattr(job, 'eval_loss'):
+        validation_loss = job.eval_loss
+    elif hasattr(job, 'validation_loss'):
+        validation_loss = job.validation_loss
+    
+    if validation_loss is not None:
+        print(f"job id={job_id} validation_loss={validation_loss}")
+        for _ in range(10):
+            print("!!!!!!")
+    
+    return validation_loss
+
+
+@ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 16)
+def deploy_together_model(config, model_id_override=None, deployment_name_override=None):
+    """
+    Deploy a fine-tuned model on Together AI with auto-timeout and test it.
+    
+    Args:
+        config: Experiment configuration
+        model_id_override: Optional model ID to deploy instead of reading from meta file
+        deployment_name_override: Optional deployment name override
+    """
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+    
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import together_retrieve_endpoint_information
+    
+    experiment_hash = compute_experiment_hash(config)
+    hash_dir = os.path.join("output", experiment_hash)
+    data_dir = os.path.join(hash_dir, "data")
+    
+    # Ensure data directory exists
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Get API key
+    api_key = os.environ.get("TOGETHER_API_KEY")
+    if not api_key:
+        raise ValueError("TOGETHER_API_KEY environment variable not set")
+    
+    client = Together(api_key=api_key)
+    
+    # Get model ID from meta file or override
+    if model_id_override:
+        model_id = model_id_override
+    else:
+        model_meta_path = os.path.join(data_dir, "sft_model_meta.json")
+        if not os.path.exists(model_meta_path):
+            raise FileNotFoundError(f"Model meta file not found: {model_meta_path}")
+        
+        with open(model_meta_path, "r") as f:
+            meta = json.load(f)
+        model_id = meta.get("fine_tuned_model")
+        if not model_id:
+            raise ValueError("No fine_tuned_model found in meta file")
+    
+    print(f"[deploy] Deploying model: {model_id}")
+    
+    # Create deployment name
+    deployment_name = deployment_name_override or f"deploy-{experiment_hash[:8]}-{int(time.time())}"
+    
+    # Start deployment with 2 min auto timeout on single H100
+    try:
+        deployment_params = {
+            "model": model_id,
+            "hardware": "1x_nvidia_h100_80gb_sxm",
+            "min_replicas": 1,
+            "max_replicas": 1,
+            "inactive_timeout": 2,
+            "disable_prompt_cache": False,
+            "disable_speculative_decoding": True
+        }
+        
+        print(f"[deploy] Creating deployment: {deployment_name}")
+        deployment = client.endpoints.create(**deployment_params)
+        deployment_id = deployment.id
+        deployment_model_path = deployment.name
+        
+    except Exception as e:
+        print(f"[deploy] Error creating deployment: {e}")
+        raise e
+    
+    print(f"[deploy] Deployment created: {deployment_id}")
+    
+    # Write deployment info to JSON
+    deployment_info_path = os.path.join(data_dir, "deployment_info.json")
+    deployment_info = {
+        "deployment_id": deployment_id,
+        "deployment_name": deployment_name,
+        "deployment_model_path": deployment_model_path,
+        "model_id": model_id,
+        "created_at": time.time(),
+        "inactive_timeout": 20
+    }
+    
+    with open(deployment_info_path, "w") as f:
+        json.dump(deployment_info, f, indent=2)
+    print(f"[deploy] Wrote deployment info to {deployment_info_path}")
+    
+    # Wait for deployment to be ready
+    print("[deploy] Waiting for deployment to be ready...")
+    max_wait_time = 900
+    start_time = time.time()
+    
+    while time.time() - start_time < max_wait_time:
+        try:
+            # Check deployment status
+            deployment = together_retrieve_endpoint_information(deployment_id)
+            status = deployment["state"]
+            
+            if status == 'STARTED':
+                print(f"[deploy] Deployment is ready (status: {status})")
+                break
+            elif status in ["STOPPED", "ERROR", "STOPPING"]:
+                raise RuntimeError(f"Deployment failed with status: {status}")
+            
+            print(f"[deploy] Current status: {status}, waiting...")
+            time.sleep(5)
+            
+        except Exception as e:
+            print(f"[deploy] Error checking deployment status: {e}")
+            time.sleep(5)
+    else:
+        raise TimeoutError(f"Deployment did not become ready within {max_wait_time} seconds")
+    
+    # Test the deployment with "Hello world"
+    print("[test] Testing deployment with 'Hello world' prompt...")
+    try:
+        response = client.chat.completions.create(
+            model=deployment_model_path,
+            messages=[
+                {"role": "user", "content": "Hello world"}
+            ],
+            max_tokens=50,
+            temperature=0.7
+        )
+        
+        if hasattr(response, 'choices') and response.choices:
+            test_response = response.choices[0].message.content
+            print(f"[test] Response: {test_response}")
+        else:
+            print("[test] No response received")
+            test_response = None
+            
+        # Save test result
+        test_result = {
+            "prompt": "Hello world",
+            "response": test_response,
+            "timestamp": time.time()
+        }
+        
+        test_result_path = os.path.join(data_dir, "deployment_test_result.json")
+        with open(test_result_path, "w") as f:
+            json.dump(test_result, f, indent=2)
+        print(f"[test] Saved test result to {test_result_path}")
+        
+    except Exception as e:
+        print(f"[test] Error testing deployment: {e}")
+        # Continue to shutdown even if test fails
+
+
+@ray.remote(num_cpus=1, retry_exceptions=True, memory=4 * 1024 * 1024 * 1024)
+def shutdown_together_deployment(config):
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+    
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import together_retrieve_endpoint_information
+    
+    experiment_hash = compute_experiment_hash(config)
+    hash_dir = os.path.join("output", experiment_hash)
+    data_dir = os.path.join(hash_dir, "data")
+
+    deployment_info_path = os.path.join(data_dir, "deployment_info.json")
+    with open(deployment_info_path, "r") as fp:
+        d_deployment_info = json.load(fp)
+
+    deployment_id = d_deployment_info["deployment_id"]
+
+    api_key = os.environ.get("TOGETHER_API_KEY")
+    if not api_key:
+        raise ValueError("TOGETHER_API_KEY environment variable not set")
+    
+    client = Together(api_key=api_key)
+
+    # Shutdown deployment
+    print("[shutdown] Shutting down deployment...")
+    try:
+        client.endpoints.delete(deployment_id)
+        print(f"[shutdown] Deployment {deployment_id} shutdown initiated")
+    except Exception as e:
+        raise RuntimeError(f"[shutdown] Error shutting down deployment: {e}")
+    
+    print("[complete] Deployment lifecycle completed")
+

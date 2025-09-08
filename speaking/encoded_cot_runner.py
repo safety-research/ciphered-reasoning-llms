@@ -94,6 +94,12 @@ def get_few_shot_examples(df, df_sample_group, config):
 
     for i, row in df.iterrows():
         df_sample = df_sample_group[df_sample_group["translated_solution"] != row["translated_solution"]]
+
+        if len(df_sample) == 0:
+            print("!!!!! no few shot examples found !!!!!")
+            print(df_sample_group['translated_solution'].head())
+            print(row['translated_solution'])
+
         df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
 
         s = "\n"
@@ -126,7 +132,9 @@ def generate_fewshot_prompt(config):
         df = pd.read_parquet(target_path)
 
         df["len"] = df["translated_solution"].map(len)
-        df_sample_group = df.sort_values("len").head(100)
+        df_sample_group = df.sort_values("len")
+        df_sample_group = df_sample_group[df_sample_group['translated_solution'].map(lambda x: '\\boxed{}' not in x)]
+        df_sample_group = df_sample_group.head(100)
         df = df.drop(columns=["len"])
 
         df["few_shot_examples"] = get_few_shot_examples(df, df_sample_group, config)
@@ -700,6 +708,246 @@ def judge_math_solving_content(config):
     df_generated_cot.to_parquet(generated_cot_path)
 
     kill_vllm_process(llm)
+
+
+
+@ray.remote(num_cpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def generate_together_prompted_translation(config):
+    from together import AsyncTogether
+    from asyncio import Semaphore
+    import asyncio
+    from tqdm.asyncio import tqdm
+    from transformers import AutoTokenizer
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from prompts import get_translation_prompt
+
+    experiment_hash = compute_experiment_hash(config)
+    data_dir = os.path.join("output", experiment_hash, "data")
+
+    # Read deployment info to get model ID
+    deployment_info_path = os.path.join(data_dir, "deployment_info.json")
+    if not os.path.exists(deployment_info_path):
+        raise FileNotFoundError(f"Deployment info not found at {deployment_info_path}. Please ensure deployment is created first.")
+    
+    with open(deployment_info_path, "r") as f:
+        deployment_info = json.load(f)
+    
+    deployment_model_id = deployment_info.get("deployment_model_path", deployment_info.get("deployment_id"))
+    if not deployment_model_id:
+        raise ValueError("No deployment_model_path or deployment_id found in deployment_info.json")
+    
+    print(f"Using deployment model: {deployment_model_id}")
+    
+    # Load tokenizer for the model
+    base_model_name = config["experiment"]["experiment_params"]["model"]
+    print(f"Loading tokenizer for model: {base_model_name}")
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+
+    ground_truth_translation = pd.read_parquet(
+        os.path.join(data_dir, "ground_truth_translation.parquet")
+    )
+
+    # Build the prompt
+    translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
+    translation_prompt = get_translation_prompt(translation_prompt_type)
+
+    if translation_prompt_type == "speaking_zero_shot":
+        # prefill answer
+        l_prefill = [{
+            "role": "assistant",
+            "content": r"\boxed"
+        }]
+    else:
+        l_prefill = []
+
+    l_inputs = []
+    for i, row in ground_truth_translation.iterrows():
+
+        row_translation_prompt = translation_prompt
+        if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
+            row_translation_prompt += "\n" + row["few_shot_examples"]
+
+        l_inputs.append(
+            {
+                "answer": row["answer"],
+                "reference_problem": row["reference_problem"],
+                "reference_solution": row["reference_solution"],
+                "translated_solution": row["translated_solution"],
+                "prompt": [
+                    {"role": "system", "content": row_translation_prompt},
+                    {
+                        "role": "user",
+                        "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding.",
+                    },
+                ] + l_prefill,
+            }
+        )
+
+    # Initialize Together client
+    api_key = os.environ.get("TOGETHER_API_KEY")
+    if not api_key:
+        raise ValueError("TOGETHER_API_KEY environment variable not set")
+    
+    client = AsyncTogether(api_key=api_key)
+
+    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    n_samples = config["experiment"]["experiment_params"]["sampling_params"].get("n", 1)
+    
+    # Generate rollouts
+    print(f"Generating {n_samples} rollout(s) for {len(l_inputs)} prompts...")
+    
+    rate_limit = Semaphore(30)  # Together AI has lower rate limits than OpenAI
+    async def run_chat(conversation, include_logprobs=False):
+        max_tokens = 12000
+        
+        for retry in range(20):
+            try:
+                async with rate_limit:
+                    params = {
+                        "model": deployment_model_id,
+                        "messages": conversation,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    }
+                    
+                    if include_logprobs:
+                        params["logprobs"] = 1
+                        params["echo"] = True  # Include prompt tokens in logprobs
+                    
+                    resp = await client.chat.completions.create(**params)
+                    
+                    ret = resp.choices[0].message.content
+                    print(f"Prompt: {conversation[-1]['content'][:100]}...")
+                    print(f"Response: {ret[:200]}...")
+                    
+                    if translation_prompt_type == "speaking_zero_shot":
+                        ret = fr"\boxed{ret}"
+                    
+                    if include_logprobs and hasattr(resp.choices[0], 'logprobs'):
+                        return ret, resp.choices[0].logprobs
+                    else:
+                        return ret
+                        
+            except Exception as e:
+                print(f"Error on retry {retry}: {e}")
+                await asyncio.sleep(min(2 ** retry, 60))
+        
+        raise Exception(f"Ran out of retries for conversation: {conversation}")
+
+    async def gather_all(tasks):
+        return await tqdm.gather(*tasks)
+
+    # Generate rollouts for each prompt
+    l_responses = []
+    for i in range(len(l_inputs)):
+        # Generate n_samples rollouts for each input
+        for _ in range(n_samples):
+            l_responses.append(run_chat(l_inputs[i]["prompt"], include_logprobs=False))
+    
+    l_responses = asyncio.run(gather_all(l_responses))
+    
+    # Organize responses by input
+    for i in range(len(l_inputs)):
+        start_idx = i * n_samples
+        end_idx = start_idx + n_samples
+        l_inputs[i]["model_cot"] = l_responses[start_idx:end_idx]
+    
+    # Now get logprobs for the ground truth translations
+    print("Computing logprobs for ground truth translations...")
+    
+    l_logprob_prompts = []
+    l_assistant_token_starts = []
+    
+    for row in l_inputs:
+        # Create prompt with ground truth as assistant response
+        logprob_prompt = row["prompt"][:-1] if translation_prompt_type == "speaking_zero_shot" else row["prompt"]
+        
+        # First, get the tokens for the prompt WITHOUT the assistant response
+        prompt_tokens = tokenizer.apply_chat_template(
+            logprob_prompt,
+            add_generation_prompt=True,  # Add the assistant prompt marker
+            tokenize=True,
+        )
+        prompt_token_count = len(prompt_tokens)
+        
+        # Now add the assistant response
+        logprob_prompt = logprob_prompt + [{
+            "role": "assistant",
+            "content": row["translated_solution"]
+        }]
+        # The assistant response starts after prompt_token_count tokens
+        l_assistant_token_starts.append(prompt_token_count)
+        l_logprob_prompts.append(logprob_prompt)
+    
+    # Get logprobs for ground truth
+    async def get_logprobs_batch():
+        tasks = []
+        for prompt in l_logprob_prompts:
+            # Use tokenizer to convert chat format to string
+            prompt_str = tokenizer.apply_chat_template(
+                prompt,
+                tokenize=False,
+                add_generation_prompt=False
+            )
+            
+            async def get_completion_logprobs(prompt_text):
+                for retry in range(20):
+                    try:
+                        async with rate_limit:
+                            resp = await client.completions.create(
+                                model=deployment_model_id,
+                                prompt=prompt_text,
+                                max_tokens=1,  # We just want logprobs, not generation
+                                temperature=0,
+                                logprobs=1,
+                                echo=True  # Include prompt in response to get all logprobs
+                            )
+                            
+                            if hasattr(resp.choices[0], 'logprobs'):
+                                return resp.choices[0].logprobs
+                            else:
+                                return None
+                                
+                    except Exception as e:
+                        print(f"Error getting logprobs on retry {retry}: {e}")
+                        await asyncio.sleep(min(2 ** retry, 60))
+                
+                return None
+            
+            tasks.append(get_completion_logprobs(prompt_str))
+        
+        return await gather_all(tasks)
+    
+    logprobs_results = asyncio.run(get_logprobs_batch())
+    
+    # Process logprobs
+    for i, logprobs_data in enumerate(logprobs_results):
+        # Extract logprobs for the assistant response portion
+        tokens = logprobs_data.tokens
+        token_logprobs = logprobs_data.token_logprobs
+        
+        # Use the pre-calculated assistant token start position
+        assistant_start_idx = l_assistant_token_starts[i]
+        
+        if assistant_start_idx < len(token_logprobs):
+            gt_logprobs = token_logprobs[assistant_start_idx:]
+            gt_tokens = tokens[assistant_start_idx:]
+            
+            # Filter out None values (first token doesn't have logprob)
+            gt_logprobs = [lp if lp is not None else -100.0 for lp in gt_logprobs]
+            
+            l_inputs[i]["gt_logprobs"] = gt_logprobs
+            l_inputs[i]["gt_logprob_tokens"] = gt_tokens
+        else:
+            # Fallback: token mismatch, try to extract what we can
+            raise RuntimeError(f"Warning: Token count mismatch for input {i}. Expected start: {assistant_start_idx}, got {len(token_logprobs)} tokens total")
+
+    df_output = pd.DataFrame(l_inputs)
+    df_output.to_parquet(os.path.join(data_dir, "prompted_cot.parquet"))
+    print(f"Saved results to {os.path.join(data_dir, 'prompted_cot.parquet')}")
 
 
 def ensure_fireworks_deployment(config):

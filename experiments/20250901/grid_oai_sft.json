@@ -1,6 +1,11 @@
 {
     "encoding_scheme": [
-        "speaking_letter_to_word_with_dot"
+        "speaking_letter_to_word_with_dot",
+        "speaking_identity",
+        "speaking_dot_between_chars",
+        "speaking_zero_shot",
+        "speaking_rot13_cipher",
+        "speaking_reverse_letters_in_each_word"
     ],
     "model_id": [
         "gpt-4.1-2025-04-14",

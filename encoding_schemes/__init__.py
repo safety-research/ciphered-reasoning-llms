@@ -83,6 +83,19 @@ from encoding_schemes.steganography import (
     speaking_math_weather_report_steg,
     speaking_math_numbers_sequence_steg
 )
+from encoding_schemes.themes import (
+    paraphrase_naive,
+    pirate_speak,
+    leet_speak,
+    yoda_speak,
+    shakespearean_text,
+    insert_tweet,
+    python_snippet_comment,
+    croissant_news_article,
+    math_textbook_article,
+    five_emojis,
+    replace_math_content_with_black_box
+)
 
 
 def get_encoding_scheme(encoding_scheme_name, config):
@@ -189,7 +202,20 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "speaking_math_news_article_steg": speaking_math_news_article_steg,
         "speaking_math_enterprise_java_steg": speaking_math_enterprise_java_steg,
         "speaking_math_weather_report_steg": speaking_math_weather_report_steg,
-        "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg
+        "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg,
+
+        # Themes
+        "speaking_paraphrase_naive": paraphrase_naive,
+        "speaking_pirate_speak": pirate_speak,
+        "speaking_leet_speak": leet_speak,
+        "speaking_yoda_speak": yoda_speak,
+        "speaking_shakespearean_text": shakespearean_text,
+        "speaking_insert_tweet": insert_tweet,
+        "speaking_python_snippet_comment": python_snippet_comment,
+        "speaking_croissant_news_article": croissant_news_article,
+        "speaking_math_textbook_article": math_textbook_article,
+        "speaking_five_emojis": five_emojis,
+        "speaking_replace_math_content_with_black_box": replace_math_content_with_black_box,
     }
 
     try:
@@ -272,7 +298,19 @@ def is_async_encoding_scheme(encoding_scheme_name):
         "speaking_math_numbers_sequence_steg",
 
         "remove_all_verbs",
-        "remove_all_nouns"
+        "remove_all_nouns",
+
+        "speaking_paraphrase_naive",
+        "speaking_pirate_speak",
+        "speaking_leet_speak",
+        "speaking_yoda_speak",
+        "speaking_shakespearean_text",
+        "speaking_insert_tweet",
+        "speaking_python_snippet_comment",
+        "speaking_croissant_news_article",
+        "speaking_math_textbook_article",
+        "speaking_five_emojis",
+        "speaking_replace_math_content_with_black_box",
     ])
 
     return encoding_scheme_name in s_async_encodings
@@ -295,6 +333,8 @@ def get_deterministic_adherence_fn(encoding_scheme_name, config):
 
         "speaking_Python": calculate_Python_adherence,
         "speaking_enterprise_Java": calculate_Java_adherence,
+
+        "speaking_paraphrase_naive": lambda x: True
     }
 
     try:

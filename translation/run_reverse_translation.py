@@ -107,8 +107,10 @@ def generate_fewshot_prompt(config):
         target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
         df = pd.read_parquet(target_path)
 
-        df["len"] = df["translated_text"].map(len)
-        df_sample_group = df.sort_values("len").head(100)
+        df["len"] = df["translated_solution"].map(len)
+        df_sample_group = df.sort_values("len")
+        df_sample_group = df_sample_group[df_sample_group['translated_solution'].map(lambda x: '\\boxed{}' not in x)]
+        df_sample_group = df_sample_group.head(100)
         df = df.drop(columns=["len"])
 
         df["few_shot_examples"] = get_few_shot_examples(df, df_sample_group, config)
@@ -172,8 +174,8 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
         print(f"Got {n_tokens} tokens for {path}")
 
 
-@ray.remote(num_cpus=1, num_gpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text"):
+@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None):
     from vllm import LLM, SamplingParams
 
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -189,7 +191,10 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
     )
 
     # Build the prompt
-    translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+    translation_prompt = config["experiment"]["experiment_params"]["translation_prompt"]
+    if translation_prompt_override is not None:
+        translation_prompt = translation_prompt_override
+    translation_prompt = get_translation_prompt(translation_prompt)
 
     n_skipped = 0
 
@@ -239,7 +244,7 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         gpu_memory_utilization=0.7,
         rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
         max_model_len=131072,
-        tensor_parallel_size=4,
+        tensor_parallel_size=2,
     )
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],

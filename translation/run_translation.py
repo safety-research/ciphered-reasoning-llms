@@ -105,8 +105,10 @@ def generate_fewshot_prompt(config):
         target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
         df = pd.read_parquet(target_path)
 
-        df["len"] = df["translated_text"].map(len)
-        df_sample_group = df.sort_values("len").head(100)
+        df["len"] = df["translated_solution"].map(len)
+        df_sample_group = df.sort_values("len")
+        df_sample_group = df_sample_group[df_sample_group['translated_solution'].map(lambda x: '\\boxed{}' not in x)]
+        df_sample_group = df_sample_group.head(100)
         df = df.drop(columns=["len"])
 
         df["few_shot_examples"] = get_few_shot_examples(df, df_sample_group, config)

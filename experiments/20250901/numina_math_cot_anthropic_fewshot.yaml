@@ -31,6 +31,12 @@ stages:
       function_name: generate_ground_truth_translation
       function_kwargs: {}
 
+  - name: generate_fewshot_prompt_placeholder_for_sft
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_fewshot_prompt
+      function_kwargs: {}
+
   - name: generate_sft_dataset_forward_translation
     executor:
       path: translation/run_translation.py

@@ -16,6 +16,7 @@ import asyncio
 
 def load_params(json_path: str) -> Dict[str, List[Any]]:
     """Load parameters from a JSON file."""
+    print(f"Reading {json_path}")
     with open(json_path, "r") as f:
         return json.load(f)
 
@@ -83,11 +84,13 @@ def run_eval_orchestrator_remote(
         print(f"Running {config}")
         return compute_experiment_hash(config)
     else:
-        # try:
-        ray.get(execute_pipeline_remote.remote(config))
-        # except Exception as e:
-        #     print(e)
-        #     print("!!!!!!!!")
+        try:
+            ray.get(execute_pipeline_remote.remote(config))
+        except Exception as e:
+            print(e)
+            print("!!!!!!!!")
+
+            return str(e)
 
 
 def generate_param_combinations(
