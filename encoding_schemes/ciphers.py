@@ -1,6 +1,13 @@
 import codecs
 import base64
 import re
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from encoding_schemes.letter_permutations import is_latex
+
 
 def base64_valid_percentage(text: str) -> float:
     """
@@ -41,6 +48,32 @@ _BASE64_ALPHABET = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123
 
 def rot13_cipher(s):
     return codecs.encode(s, "rot_13")
+
+
+def inverse_rot13_cipher(s):
+    return codecs.decode(s, "rot_13")
+
+
+def rot13_no_math_expressions_cipher(s):
+    l_words = s.split(" ")
+    for i, word in enumerate(l_words):
+        if is_latex(word):
+            continue
+        
+        has_math_expr = False
+        for math_expr_char in ["+", "-", "/", "*", "<", ">", "=", "^", "f(x)", "\\sum"]:
+            if math_expr_char in word:
+                has_math_expr = True
+                break
+        if has_math_expr:
+            continue
+
+        if word.isdigit():
+            continue
+
+        l_words[i] = codecs.encode(l_words[i], "rot_13")
+
+    return " ".join(l_words)
 
 
 def base64_cipher(s):

@@ -10,6 +10,7 @@ from encoding_schemes.ciphers import (
     base64_3x_cipher,
     caesar_cipher,
 
+    inverse_rot13_cipher,
     inverse_base64_cipher,
     inverse_base64_2x_cipher,
     inverse_base64_3x_cipher,
@@ -30,6 +31,7 @@ from encoding_schemes.compression import (
 )
 from encoding_schemes.letter_permutations import (
     reverse_letters_in_each_word,
+    reverse_letters_in_each_word_no_math_expressions_cipher,
     random_permute_letters_in_each_word,
     swap_even_odd_letters_in_each_word,
     reverse_fibonacci_indices_in_each_word,
@@ -43,7 +45,9 @@ from encoding_schemes.destructive_mutations import (
     remove_all_verbs,
     remove_all_nouns,
 
-    calculate_zero_shot_adherence
+    calculate_zero_shot_adherence,
+    calculate_remove_all_nouns_adherence,
+    calculate_remove_all_verbs_adherence
 )
 from encoding_schemes.letter_substitutions import (
     letter_to_word_with_dot,
@@ -94,7 +98,9 @@ from encoding_schemes.themes import (
     croissant_news_article,
     math_textbook_article,
     five_emojis,
-    replace_math_content_with_black_box
+    replace_math_content_with_black_box,
+
+    compute_five_emojis_adherence
 )
 
 
@@ -132,6 +138,8 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "rot13_cipher": rot13_cipher,
         "reverse_rot13_cipher": rot13_cipher,
         "speaking_rot13_cipher": rot13_cipher,
+
+        "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_no_math_expressions_cipher,
 
         "base64_cipher": base64_cipher,
         "reverse_base64_cipher": base64_cipher,
@@ -244,6 +252,7 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
         "speaking_gzip_to_bpe_encoded": inverse_gzip_to_bpe_encoded,
         "speaking_gzip_to_base64_encoded": inverse_gzip_to_base64_encoded,
         "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word, # reverse word letters is symmetric
+        "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_no_math_expressions_cipher,
         "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word, # symmetric
         "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word, # also symmetric
 
@@ -328,8 +337,17 @@ def get_deterministic_adherence_fn(encoding_scheme_name, config):
         "speaking_base64_3x_cipher": calculate_base64_3x_cipher_adherence,
         "speaking_gzip_to_base64_encoded": calculate_gzip_base64_adherence,
         "speaking_reverse_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word),
+        "speaking_reverse_letters_in_each_word_no_math_expressions": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word_no_math_expressions_cipher),
         "speaking_swap_even_odd_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, swap_even_odd_letters_in_each_word),
         "speaking_reverse_fibonacci_indices_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_fibonacci_indices_in_each_word),
+        
+        "speaking_rot13_cipher": lambda x: calculate_letter_permutation_adherence(x, inverse_rot13_cipher),
+        "speaking_caesar_cipher": lambda x: calculate_letter_permutation_adherence(x, inverse_caesar_cipher),
+
+        "remove_all_verbs": calculate_remove_all_verbs_adherence,
+        "remove_all_nouns": calculate_remove_all_nouns_adherence,
+
+        "speaking_five_emojis": compute_five_emojis_adherence,
 
         "speaking_Python": calculate_Python_adherence,
         "speaking_enterprise_Java": calculate_Java_adherence,

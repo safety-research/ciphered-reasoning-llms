@@ -16,6 +16,10 @@ from tqdm.asyncio import tqdm
 from openai import AsyncOpenAI
 from asyncio import Semaphore
 
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from utils.nlp_tagging import count_num_sentences
+
 
 client = AsyncOpenAI(
     api_key=os.environ['ANTHROPIC_API_KEY'],
@@ -165,6 +169,45 @@ Think step by step in <reasoning> tags and then output your rewrite in <rewrite>
     """.strip(), ["reasoning", "rewrite"])
 
     return d_result["rewrite"], d_result["reasoning"]
+
+
+def count_emoji_sequences(text):
+    # Regex pattern to match emojis
+    emoji_pattern = re.compile(
+        r"[\U0001F300-\U0001F5FF"  # Symbols & Pictographs
+        r"\U0001F600-\U0001F64F"   # Emoticons
+        r"\U0001F680-\U0001F6FF"   # Transport & Map
+        r"\U0001F700-\U0001F77F"   # Alchemical symbols
+        r"\U0001F780-\U0001F7FF"   # Geometric shapes
+        r"\U0001F800-\U0001F8FF"   # Supplemental arrows
+        r"\U0001F900-\U0001F9FF"   # Supplemental symbols & pictographs
+        r"\U0001FA00-\U0001FA6F"   # Chess & symbols
+        r"\U0001FA70-\U0001FAFF"   # More pictographs
+        r"\U00002700-\U000027BF"   # Dingbats
+        r"\U00002600-\U000026FF"   # Miscellaneous symbols
+        r"\U00002B00-\U00002BFF"   # Arrows & symbols
+        r"\U00002300-\U000023FF"   # Additional technical symbols
+        r"]"
+    )
+    
+    # Find all positions where a sequence of 5 emojis occurs
+    sequence_pattern = re.compile(f"({emoji_pattern.pattern}{{5}})")
+    
+    # Count matches
+    return len(sequence_pattern.findall(text))
+
+
+def compute_five_emojis_adherence(text):
+    num_emoji_sequences = count_emoji_sequences(text)
+    num_sentences = count_num_sentences(text)
+
+    ratio = num_emoji_sequences / max(1, num_sentences)
+
+    # num emoji sequences ~= 0.1x - 3x num sentences determined by flair
+    if abs(ratio - 1) < 2:
+        return True
+
+    return False
 
 
 async def replace_math_content_with_black_box(text):

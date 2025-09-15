@@ -1,0 +1,11 @@
+{
+    "encoding_scheme": [
+        "speaking_reverse_letters_in_each_word"
+    ],
+    "model_id": [
+        "gpt-5-chat-latest",
+        "gpt-4.1-2025-04-14",
+        "gpt-4.1-mini-2025-04-14",
+        "gpt-4.1-nano-2025-04-14"
+    ]
+}

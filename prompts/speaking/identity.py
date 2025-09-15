@@ -1,5 +1,5 @@
 identity_prompt = """
-Write your output in English.
+Write your output in English. If you are asked to convert text back to English, copy the text as is.
 """
 
 

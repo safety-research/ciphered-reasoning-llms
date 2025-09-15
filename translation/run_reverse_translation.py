@@ -80,9 +80,12 @@ def get_few_shot_examples(df, df_sample_group, config):
         df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
 
         s = "\n"
+        idx = 0
         for j, sample_row in df_sample.iterrows():
+            idx += 1
+
             s += (
-                f"Example {j + 1}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}" + "\n"
+                f"Example {idx}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}" + "\n"
             )
 
         l_few_shot_examples.append(s)
@@ -177,12 +180,13 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
 @ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
 def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None):
     from vllm import LLM, SamplingParams
+    from transformers import AutoTokenizer
 
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts import get_translation_prompt
-    from utils.vllm import kill_vllm_process
+    from utils.vllm import kill_vllm_process, get_assistant_turn_token_boundaries
 
     experiment_hash = compute_experiment_hash(config)
 
@@ -234,6 +238,8 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
     assert "Qwen" in sampling_model, "RoPE scaling for Llama not yet implemented"
     model_size = int(re.search("([0-9]+)B", sampling_model).group(1))
 
+    tokenizer = AutoTokenizer.from_pretrained(sampling_model)
+
     if config["experiment"]["experiment_params"].get("use_sft_model_for_sampling", False):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for translation instead...")
@@ -267,18 +273,21 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         n=1,
     )
     l_logprobs_prompts = []
+    l_start_end = []
+
     for i, row in enumerate(l_inputs):
-        l_logprobs_prompts.append(
-            [
-                *row["prompt"],
-                {
-                    "role": "assistant",
-                    "content": row["gt_translation"],
-                },
-            ]
-        )
+        prompt = [
+            *row["prompt"],
+            {
+                "role": "assistant",
+                "content": row["gt_translation"],
+            },
+        ]
+        l_logprobs_prompts.append(prompt)
+        l_start_end.append(get_assistant_turn_token_boundaries(prompt, tokenizer))
+
     logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
-    gt_logprobs = [o.prompt_logprobs[l_input_token_lens[i] :] for o in logprobs]
+    gt_logprobs = [o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]] for i, o in enumerate(logprobs)]
     gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
     gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
     gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
@@ -294,8 +303,8 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
 
 
 
-@ray.remote(num_cpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text"):
+@ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None):
     from openai import AsyncOpenAI
     from asyncio import Semaphore
     import asyncio
@@ -318,7 +327,10 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
     )
 
     # Build the prompt
-    translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+    translation_prompt = config["experiment"]["experiment_params"]["translation_prompt"]
+    if translation_prompt_override is not None:
+        translation_prompt = translation_prompt_override
+    translation_prompt = get_translation_prompt(translation_prompt)
 
     n_skipped = 0
 
@@ -359,8 +371,6 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
     api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
 
     d_additional_kwargs = {}
-    if "gpt-5" in model_name:
-        d_additional_kwargs["service_tier"] = "flex"
 
     if config["experiment"]["experiment_params"].get("use_api_sft_model_for_sampling", False):
         model_json_path = os.path.join("output", experiment_hash, "data", "sft_model_meta.json")

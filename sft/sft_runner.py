@@ -29,22 +29,79 @@ import tempfile
 from typing import Union, List, Dict, Optional, Any
 from pathlib import Path
 import requests
-
+import asyncio
 
 import pandas as pd
+import socket
 from together import Together
 
+from ray.util.placement_group import placement_group, remove_placement_group
+from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
+from ray.util import get_node_ip_address
 
 
-@ray.remote(num_cpus=1, num_gpus=8, retry_exceptions=True, memory=1024 * 1024 * 1024 * 512)
-def sft_model(config):
+@ray.remote(num_cpus=2)  # you can also add max_concurrency if desired
+class Coordinator:
+    def __init__(self):
+        self._info = None
+        self._event = asyncio.Event()
+
+    async def set(self, addr: str, port: int):
+        self._info = (addr, port)
+        self._event.set()
+
+    async def get(self, timeout_s: float = 120.0):
+        try:
+            await asyncio.wait_for(self._event.wait(), timeout=timeout_s)
+        except asyncio.TimeoutError:
+            return None
+        return self._info
+
+
+def pick_free_port() -> int:
+    """Pick an available TCP port on the current node."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
+@ray.remote(num_cpus=1, num_gpus=8, memory=1024 * 1024 * 1024 * 512)
+def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=None, cpu_offload_override=None, micro_batch_size_override=None):
     from orchestration.experiment_meta_saver import compute_experiment_hash
+    from sft.sft_runner import pick_free_port
 
     experiment_hash = compute_experiment_hash(config)
     hash_dir = os.path.join("output", experiment_hash)
 
     train_path = os.path.join(hash_dir, "data", "sft_train.parquet")
     valid_path = os.path.join(hash_dir, "data", "sft.parquet")
+
+    n_gpus = len(ray.get_gpu_ids())
+
+    node_rank = 0
+    num_nodes = 1
+    master_addr = "127.0.0.1"
+    master_port = pick_free_port()
+    
+    if coord:
+        node_rank = node_rank_override
+        num_nodes = num_nodes_override
+
+        if node_rank == 0:
+            master_addr = get_node_ip_address()
+            master_port = pick_free_port()
+            # Publish rendezvous info for the other node
+            ray.get(coord.set.remote(master_addr, master_port))
+        else:
+            result = ray.get(coord.get.remote(timeout_s=300.0))
+            if result is None:
+                raise RuntimeError("Timed out waiting for master rendezvous info")
+            master_addr, master_port = result
+
+        print(
+            f"[node_rank={node_rank}] master_addr={master_addr} master_port={master_port} "
+            f"num_nodes={num_nodes}"
+        )
 
     batch_size = config["experiment"]["experiment_params"]["sft_params"]["batch_size"]
     ref_model = config["experiment"]["experiment_params"]["model"]
@@ -70,28 +127,38 @@ def sft_model(config):
         batch_size = int(batch_size / 4) * 4
 
     ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
-    micro_batch_size = max(1, batch_size // 4)
-    micro_batch_size = min(micro_batch_size, 16)
+
+    dp_size = (4 * num_nodes)
+    micro_batch_size = max(1, batch_size // dp_size)
+
+    global_max_micro_batch_sz = 16 if num_nodes == 1 else 32
+    micro_batch_size = min(micro_batch_size, global_max_micro_batch_sz)
+    if micro_batch_size_override is not None:
+        micro_batch_size = micro_batch_size_override
 
     seq_parallel_size = 2  # needed to enable sequence packing in verl SFT
 
     cpu_offload = False
+    if cpu_offload_override is not None:
+        cpu_offload = cpu_offload_override
 
-    is_dense_model = re.search("A[0-9]+B", ref_model) is None
-    if ref_model_size > 20 and is_dense_model:
-        cpu_offload = True
+    # is_dense_model = re.search("A[0-9]+B", ref_model) is None
+    # if ref_model_size > 20 and is_dense_model:
+    #     cpu_offload = True
 
-    while (batch_size // 4) % micro_batch_size != 0:
+    while (batch_size // dp_size) % micro_batch_size != 0:
         micro_batch_size -= 1
-
-    n_gpus = len(ray.get_gpu_ids())
 
     subprocess.run(
         f"""
+    NCCL_SOCKET_NTHREADS=4
+    NCCL_NSOCKS_PERTHREAD=2
+
     NUM_GPUS_PER_NODE={n_gpus}
-    NUM_NODES=1
-    NODE_RANK=0
-    MASTER_ADDR=127.0.0.1
+    NUM_NODES={num_nodes}
+    NODE_RANK={node_rank}
+    MASTER_ADDR={master_addr}
+    MASTER_PORT={master_port}
 
     TRAIN_PATH={train_path}
     VALID_PATH={valid_path}
@@ -121,6 +188,116 @@ def sft_model(config):
     )
 
     # last step saved to save_path/last
+
+
+@ray.remote(num_cpus=1, num_gpus=8, memory=1024 * 1024 * 1024 * 512)
+def test_all_reduce_bandwidth(config, node_rank_override=None, num_nodes_override=None, coord=None):
+    from sft.sft_runner import pick_free_port
+
+    n_gpus = len(ray.get_gpu_ids())
+
+    node_rank = 0
+    num_nodes = 1
+    master_addr = "127.0.0.1"
+    master_port = pick_free_port()
+    
+    assert coord is not None
+    node_rank = node_rank_override
+    num_nodes = num_nodes_override
+
+    if node_rank == 0:
+        master_addr = get_node_ip_address()
+        master_port = pick_free_port()
+        # Publish rendezvous info for the other node
+        ray.get(coord.set.remote(master_addr, master_port))
+    else:
+        result = ray.get(coord.get.remote(timeout_s=300.0))
+        if result is None:
+            raise RuntimeError("Timed out waiting for master rendezvous info")
+        master_addr, master_port = result
+
+    print(
+        f"[node_rank={node_rank}] master_addr={master_addr} master_port={master_port} "
+        f"num_nodes={num_nodes}"
+    )
+
+    subprocess.run(
+        f"""
+    NUM_GPUS_PER_NODE={n_gpus}
+    NUM_NODES={num_nodes}
+    NODE_RANK={node_rank}
+    MASTER_ADDR={master_addr}
+    MASTER_PORT={master_port}
+    NCCL_SOCKET_NTHREADS=4
+    NCCL_NSOCKS_PERTHREAD=2
+
+    torchrun    --nproc_per_node={n_gpus} \
+    --nnodes={num_nodes} \
+    --node_rank={node_rank} \
+    --master_addr={master_addr} \
+    --master_port={master_port} \
+    /home/ubuntu/sky_workdir/pytorch-communication-benchmarks/allreduce-loop.py
+    """.replace(
+            "\n", " "
+        ),
+        shell=True,
+        check=True,
+    )
+
+
+@ray.remote(num_cpus=1)
+def multinode_sft_model(config, nnodes = None, detach_pg: bool = False, task_options = {}, do_test_all_reduce_bandwidth=False):
+    """
+    Submit a single 16-GPU job (2 nodes × 8 GPUs). Safe to call multiple times
+    concurrently; each call uses its own PG + coordinator.
+    Returns: list of ObjectRefs for the two tasks plus the PG (for optional cleanup).
+    """
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from sft.sft_runner import Coordinator, sft_model, test_all_reduce_bandwidth
+
+    assert nnodes is not None
+
+    # Create a per-job placement group with two 8-GPU bundles, hard spread across nodes.
+    task_resources = task_options.get('resources', {})
+    pg = placement_group(
+        bundles=[{"GPU": 8, "CPU": 16, "memory": 512 * 1024 * 1024 * 1024, **task_resources} for _ in range(nnodes)],
+        strategy="STRICT_SPREAD",
+        lifetime="detached" if detach_pg else None,
+    )
+    ray.get(pg.ready())
+
+    # Pin the coordinator to bundle 0 (so rank-0 and the coordinator share the same node).
+    pg0 = PlacementGroupSchedulingStrategy(
+        placement_group=pg,
+        placement_group_bundle_index=0,
+        placement_group_capture_child_tasks=False,
+    )
+    coord = Coordinator.options(scheduling_strategy=pg0).remote()
+
+    fn = test_all_reduce_bandwidth if do_test_all_reduce_bandwidth else sft_model
+
+    l_tasks = [
+        fn.options(scheduling_strategy=pg0, **task_options).remote(
+            config, node_rank_override=0, num_nodes_override=nnodes, coord=coord
+        )
+    ]
+
+    for i in range(nnodes - 1):
+        l_tasks.append(
+            fn.options(
+                scheduling_strategy=PlacementGroupSchedulingStrategy(
+                    placement_group=pg,
+                    placement_group_bundle_index=i + 1,
+                    placement_group_capture_child_tasks=False,
+                ),
+                **task_options
+            ).remote(
+                config, node_rank_override=i + 1, num_nodes_override=nnodes, coord=coord
+            )
+        )
+
+    ray.get(l_tasks)
 
 
 def convert_sft_parquet_to_jsonl(parquet_path, output_json_path):

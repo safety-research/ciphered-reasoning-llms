@@ -1,0 +1,193 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: math_cot_sft_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: numina_math_cot_16000
+    validation_set_frac: 0.05
+
+    sampling_params:
+      temperature: 1.0
+      n: 1
+
+    sft_params:
+      batch_size: 18
+      num_epochs: 1
+      
+    base_url: https://api.openai.com/v1/
+
+    translation_prompt: ${encoding_scheme}
+
+    use_api_sft_model_for_sampling: True
+
+  experiment_tags:
+    numina_math_cot_rerun: True
+
+stages:
+  - name: generate_ground_truth_translation_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs: {}
+    force_overwrite: True
+
+  - name: generate_sft_dataset_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_sft_dataset
+      function_kwargs: {}
+    force_overwrite: True
+
+  - name: copy_cot_reasoning
+    executor:
+      path: utils/io_utils.py
+      function_name: copy_file
+      function_kwargs:
+        from_template: output/__HASH__/data/sft_train.parquet
+        to_template: output/__HASH__/data/sft_cot_train.parquet
+    force_overwrite: True
+
+
+  - name: copy_cot_reasoning_valid
+    executor:
+      path: utils/io_utils.py
+      function_name: copy_file
+      function_kwargs:
+        from_template: output/__HASH__/data/sft.parquet
+        to_template: output/__HASH__/data/sft_cot.parquet
+    force_overwrite: True
+
+  - name: combine_sft_files
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_parquet_files
+      function_kwargs:
+        to_template: output/__HASH__/data/sft_train.parquet
+        index_lockstep: True
+        cot_path: output/__HASH__/data/sft_cot_train.parquet
+    force_overwrite: True
+
+  - name: combine_sft_files_valid
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_parquet_files
+      function_kwargs:
+        to_template: output/__HASH__/data/sft.parquet
+        index_lockstep: True
+        cot_path: output/__HASH__/data/sft_cot.parquet
+    force_overwrite: True
+
+  - name: count_sft_tokens
+    executor:
+      path: utils/io_utils.py
+      function_name: write_token_count
+      function_kwargs: {}
+    force_overwrite: True
+
+  - name: generate_ground_truth_translation_math500_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs:
+        dataset_override: prm800k_test_raw
+        validation_set_frac_override: 0.0
+
+    force_overwrite: True
+
+  - name: truncate_sft_dataset
+    executor:
+      path: utils/io_utils.py
+      function_name: take_first_n_rows
+      function_kwargs:
+        df_path: output/__HASH__/data/sft_train.parquet
+        n_rows: 3040 # df already sorted
+
+    force_overwrite: True
+
+  - name: openai_sft_model
+    executor:
+      path: sft/sft_runner.py
+      function_name: openai_sft_model
+      function_kwargs: {}
+
+    force_overwrite: True
+    
+  - name: compute_reverse_translation_validation_loss
+    executor:
+      path: translation/run_reverse_translation.py
+      function_name: compute_openai_validation_loss
+      function_kwargs:
+        validation_set_name: reverse_translation_math500
+        skip_too_long: False
+        reference_text_col: raw_translated_cot
+        translated_text_col: reference_solution
+
+    force_overwrite: True
+
+  - name: compute_numinamath_validation_loss
+    executor:
+      path: translation/run_reverse_translation.py
+      function_name: compute_openai_validation_loss
+      function_kwargs:
+        validation_set_name: numinamath_validation
+        override_source_validation_data_template: output/__HASH__/data/sft.parquet
+
+    force_overwrite: True
+
+  - name: generate_math500_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs: {}
+
+    force_overwrite: True
+
+  - name: evaluate_math_accuracy
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs: {}
+
+    force_overwrite: True
+
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+    task_options:
+      num_gpus: 0
+
+    force_overwrite: True
+
+  - name: generate_math500_reverse_translation
+    executor:
+      path: translation/run_reverse_translation.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs:
+        skip_too_long: False
+        reference_text_col: raw_translated_cot
+        translated_text_col: reference_solution
+
+    force_overwrite: True
+
+  - name: evaluate_bleu_score
+    executor:
+      path: evaluation/metrics/translation.py
+      function_name: evaluate_bleu_score
+      function_kwargs: {}
+
+    force_overwrite: True
+
+  - name: combine_all_result_dfs
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_translation_math_cot_dfs
+      function_kwargs: {}
+
+    force_overwrite: True

@@ -2,36 +2,27 @@ experiment:
   table_name: encoding_schemes
 
   project_name: encoding_schemes
-  experiment_name: datascaling_mathcot_sft_${encoding_scheme}_${model_id}
+  experiment_name: mathcot_fewshot_${encoding_scheme}_${model_id}
 
   experiment_params:
     model: ${model_id}
     encoding_scheme: ${encoding_scheme}
 
-    dataset: numina_math_cot_512000
+    dataset: numina_math_cot_16000
     validation_set_frac: 0.05
 
     sampling_params:
       temperature: 1.0
-      n: 4
+      n: 1
 
-    sft_params:
-      batch_size: 384
-      learning_rate: 2e-6
-      clip_grad: 1.0
-      num_epochs: 1
-      weight_decay: 0.0
-      # preshuffled to maintain iid
-      shuffle: False
-      warmup_steps_ratio: 0.005
-      lr_schedule: constant
-      save_freq: 128
+    base_url: https://api.openai.com/v1/
 
     translation_prompt: ${encoding_scheme}
-    
-    use_sft_model_for_sampling: True
+
+    n_few_shot_examples: 8
 
   experiment_tags:
+    numina_math_cot_rerun: True
 
 stages:
   - name: generate_ground_truth_translation_cot
@@ -39,6 +30,16 @@ stages:
       path: speaking/encoded_cot_runner.py
       function_name: generate_ground_truth_translation
       function_kwargs: {}
+
+    
+
+  - name: generate_fewshot_prompt_placeholder_for_sft
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_fewshot_prompt
+      function_kwargs: {}
+
+    
 
   - name: generate_sft_dataset_forward_translation
     executor:
@@ -49,6 +50,8 @@ stages:
         reference_text_col: reference_solution
         translated_text_col: raw_translated_cot
 
+    
+
   - name: copy_forward_translation
     executor:
       path: utils/io_utils.py
@@ -56,6 +59,8 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft_train.parquet
         to_template: output/__HASH__/data/sft_translation_train.parquet
+
+    
   
   - name: copy_forward_translation_valid
     executor:
@@ -64,6 +69,8 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft.parquet
         to_template: output/__HASH__/data/sft_translation.parquet
+
+    
 
   - name: generate_sft_dataset_reverse_translation
     executor:
@@ -75,6 +82,8 @@ stages:
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
 
+    
+
   - name: copy_reverse_translation
     executor:
       path: utils/io_utils.py
@@ -82,6 +91,8 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft_train.parquet
         to_template: output/__HASH__/data/sft_backtranslation_train.parquet
+
+    
   
   - name: copy_reverse_translation_valid
     executor:
@@ -90,6 +101,8 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft.parquet
         to_template: output/__HASH__/data/sft_backtranslation.parquet
+
+    
 
   - name: generate_sft_dataset_cot
     executor:
@@ -106,6 +119,8 @@ stages:
         from_template: output/__HASH__/data/sft_train.parquet
         to_template: output/__HASH__/data/sft_cot_train.parquet
 
+    
+
 
   - name: copy_cot_reasoning_valid
     executor:
@@ -114,6 +129,8 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft.parquet
         to_template: output/__HASH__/data/sft_cot.parquet
+
+    
 
   - name: combine_sft_files
     executor:
@@ -126,6 +143,8 @@ stages:
         backtranslation_path: output/__HASH__/data/sft_backtranslation_train.parquet
         cot_path: output/__HASH__/data/sft_cot_train.parquet
 
+    
+
   - name: combine_sft_files_valid
     executor:
       path: utils/io_utils.py
@@ -137,11 +156,15 @@ stages:
         backtranslation_path: output/__HASH__/data/sft_backtranslation.parquet
         cot_path: output/__HASH__/data/sft_cot.parquet
 
+    
+
   - name: count_sft_tokens
     executor:
       path: utils/io_utils.py
       function_name: write_token_count
       function_kwargs: {}
+
+    
 
   - name: generate_ground_truth_translation_math500_cot
     executor:
@@ -151,60 +174,63 @@ stages:
         dataset_override: prm800k_test_raw
         validation_set_frac_override: 0.0
 
-  - name: sft_model
+    
+
+  - name: generate_fewshot_prompt
     executor:
-      path: sft/sft_runner.py
-      function_name: sft_model
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_fewshot_prompt
+      function_kwargs: {}
+
+    
+
+  - name: generate_math500_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs: {}
+
+    
+
+  - name: evaluate_math_accuracy
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs: {}
+
+    
+
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+
+    
+
+  - name: generate_math500_reverse_translation
+    executor:
+      path: translation/run_reverse_translation.py
+      function_name: generate_openai_prompted_translation
       function_kwargs:
-        micro_batch_size_override: 4
-    task_options:
-      resources:
-        long_running_job: 1
+        skip_too_long: False
+        reference_text_col: raw_translated_cot
+        translated_text_col: reference_solution
 
-  # - name: do_test_all_reduce_bandwidth
-  #   executor:
-  #     path: sft/sft_runner.py
-  #     function_name: multinode_sft_model
-  #     function_kwargs:
-  #       nnodes: 2
-  #       do_test_all_reduce_bandwidth: True
-  #   force_overwrite: True
+    
 
-  # - name: generate_math500_cot
-  #   executor:
-  #     path: speaking/encoded_cot_runner.py
-  #     function_name: generate_prompted_translation
-  #     function_kwargs: {}
+  - name: evaluate_bleu_score
+    executor:
+      path: evaluation/metrics/translation.py
+      function_name: evaluate_bleu_score
+      function_kwargs: {}
 
-  # - name: evaluate_math_accuracy
-  #   executor:
-  #     path: evaluation/metrics/math_accuracy.py
-  #     function_name: evaluate_math_accuracy
-  #     function_kwargs: {}
+    
 
-  # - name: judge_cot_style_adherence
-  #   executor:
-  #     path: speaking/encoded_cot_runner.py
-  #     function_name: judge_cot_style_adherence
-  #     function_kwargs: {}
+  - name: combine_all_result_dfs
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_translation_math_cot_dfs
+      function_kwargs: {}
 
-  # - name: generate_math500_reverse_translation
-  #   executor:
-  #     path: translation/run_reverse_translation.py
-  #     function_name: generate_prompted_translation
-  #     function_kwargs:
-  #       skip_too_long: False
-  #       reference_text_col: raw_translated_cot
-  #       translated_text_col: reference_solution
-
-  # - name: evaluate_bleu_score
-  #   executor:
-  #     path: evaluation/metrics/translation.py
-  #     function_name: evaluate_bleu_score
-  #     function_kwargs: {}
-
-  # - name: combine_all_result_dfs
-  #   executor:
-  #     path: utils/io_utils.py
-  #     function_name: combine_translation_math_cot_dfs
-  #     function_kwargs: {}
+    

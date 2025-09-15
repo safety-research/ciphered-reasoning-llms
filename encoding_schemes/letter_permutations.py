@@ -2,6 +2,31 @@ import numpy as np
 import json
 import string
 import os
+import re
+
+def is_latex(text: str) -> bool:
+    """
+    Detects whether the given string contains LaTeX content.
+
+    Args:
+        text (str): The input string.
+
+    Returns:
+        bool: True if the string likely contains LaTeX, False otherwise.
+    """
+    # Common LaTeX patterns
+    latex_patterns = [
+        r"\$.*?\$",            # Inline math: $...$
+        r"\$\$.*?\$\$",        # Display math: $$...$$
+        r"\\\[.*?\\\]",        # Display math: \[...\]
+        r"\\\(.*?\\\)",        # Inline math: \(...\)
+        r"\\begin\{.*?\}",     # LaTeX environments: \begin{...}
+        r"\\end\{.*?\}",       # LaTeX environments: \end{...}
+        r"\\[a-zA-Z]+",        # LaTeX commands: \frac, \alpha, \sum, etc.
+    ]
+
+    combined_pattern = re.compile("|".join(latex_patterns), re.DOTALL)
+    return bool(combined_pattern.search(text))
 
 
 def reverse_letters_in_each_word(s):
@@ -10,6 +35,28 @@ def reverse_letters_in_each_word(s):
         s[i] = s[i][::-1]
 
     return " ".join(s)
+
+
+def reverse_letters_in_each_word_no_math_expressions_cipher(s):
+    l_words = s.split(" ")
+    for i, word in enumerate(l_words):
+        if is_latex(word):
+            continue
+        
+        has_math_expr = False
+        for math_expr_char in ["+", "-", "/", "*", "<", ">", "=", "^", "f(x)", "\\sum"]:
+            if math_expr_char in word:
+                has_math_expr = True
+                break
+        if has_math_expr:
+            continue
+
+        if word.isdigit():
+            continue
+
+        l_words[i] = l_words[i][::-1]
+
+    return " ".join(l_words)
 
 
 def get_English_dictionary():
@@ -29,15 +76,21 @@ def calculate_letter_permutation_adherence(s, inverse_fn):
 
     decoded = inverse_fn(s)
 
-    words = s.split(" ")
+    words = decoded.split(" ")
 
     n_valid_words = 0
+    n_non_latex_words = 0
     for word in words:
+        if is_latex(word):
+            continue
+
+        n_non_latex_words += 1
+
         word = normalize_word(word)
         if word in english_dictionary or len(word) == 0:
             n_valid_words += 1
 
-    return n_valid_words / len(words) >= 0.7
+    return n_valid_words / max(n_non_latex_words, 1) >= 0.7
         
 
 def random_permute_letters_in_each_word(s):

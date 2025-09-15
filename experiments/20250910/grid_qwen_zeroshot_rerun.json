@@ -1,0 +1,10 @@
+{
+    "encoding_scheme": [
+        "speaking_zero_shot"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-3B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

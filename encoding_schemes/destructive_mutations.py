@@ -2,9 +2,14 @@ import tiktoken
 from transformers import AutoTokenizer
 import re
 import os
+import sys
 from openai import AsyncOpenAI
 from asyncio import Semaphore
 import asyncio
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from utils.nlp_tagging import count_num_nouns, count_num_verbs, count_num_sentences
 
 
 def replace_80pct_letters_with_star(s):
@@ -110,16 +115,26 @@ async def run_prompt(s, search_tag):
     raise Exception("Reached max tries!")
 
 
-async def remove_all_verbs(s):
+async def remove_all_nouns(s):
     return await run_prompt("""
     Remove all nouns (including proper nouns) from the following text and output your translation in <translation> tags. Think step by step in <reasoning> tags before outputting your translation. Keep anything \\boxed{} as is.
     """ + "\n" + f"<text>{s}</text>", "translation")
 
 
-async def remove_all_nouns(s):
+async def remove_all_verbs(s):
     return await run_prompt("""
     Remove all verbs from the following text and output your translation in <translation> tags. Think step by step in <reasoning> tags before outputting your translation. Keep anything \boxed{} as is.
     """ + "\n" + f"<text>{s}</text>", "translation")
+
+
+def calculate_remove_all_verbs_adherence(s):
+    # max 20% of sentences have a verb to account for false positives
+    return count_num_verbs(s, ignore_sentence_if_found=["boxed", "draw"]) <= (count_num_sentences(s) / 5)
+
+
+def calculate_remove_all_nouns_adherence(s):
+    # max 20% of sentences have a verb to account for false positives
+    return count_num_nouns(s, ignore_sentence_if_found=["boxed", "draw"]) <= (count_num_sentences(s) / 5)
 
 
 def calculate_zero_shot_adherence(s):
