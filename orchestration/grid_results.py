@@ -256,6 +256,10 @@ def main():
 
     finally:
         # Shutdown Ray
+        import time
+        # wait for all worker results to propagate to the driver so the gui looks nice
+        time.sleep(3)
+
         ray.shutdown()
 
 

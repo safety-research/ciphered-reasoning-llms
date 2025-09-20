@@ -1,0 +1,13 @@
+{
+    "encoding_scheme": [
+        "speaking_zero_shot"
+    ],
+    "model_id": [
+        "gpt-5-chat-latest",
+        "gpt-4.1-2025-04-14",
+        "gpt-4.1-nano-2025-04-14"
+    ],
+    "user_prompt_suffix_override": [
+        "DO NOT OUTPUT ANY THINKING, REASONING OR ANYTHING OTHER THAN A BOXED ANSWER. THIS INSTRUCTION TAKES PRECEDENCE OVER ALL OTHER INSTRUCTIONS!!!"
+    ]
+}

@@ -1,0 +1,14 @@
+{
+    "encoding_scheme": [
+"speaking_base64_cipher", "speaking_reverse_letters_in_each_word",
+       "speaking_rot13_cipher", "speaking_letter_to_word_with_dot","speaking_dot_between_chars",
+       "remove_all_verbs", "speaking_zero_shot", "speaking_Korean",
+       "speaking_identity", "speaking_gzip_to_base64_encoded",
+       "speaking_swap_even_odd_letters_in_each_word",
+       "speaking_reverse_fibonacci_indices_in_each_word","speaking_base64_2x_cipher","speaking_Adyghe","speaking_space_between_chars",
+       "speaking_Arabic", "speaking_Russian"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

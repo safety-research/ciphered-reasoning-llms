@@ -1,0 +1,14 @@
+{
+    "encoding_scheme": [
+"speaking_base64_cipher",
+"speaking_Korean",
+"speaking_letter_to_word_with_dot",
+"speaking_rot13_cipher", 
+"speaking_dot_between_chars",
+ "speaking_reverse_letters_in_each_word"
+    ],
+    "model_id": [
+        "gpt-4.1-mini-2025-04-14",
+        "gpt-4.1-2025-04-14"
+    ]
+}

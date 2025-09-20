@@ -178,7 +178,7 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
 
 
 @ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None):
+def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None, model_path_override=None, save_path_override=None, sampling_temperature_override=None):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
@@ -244,6 +244,10 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for translation instead...")
 
+    if model_path_override is not None:
+        sampling_model = model_path_override.replace("__HASH__", experiment_hash)
+        print(f"Using model path override {sampling_model}")
+
     llm = LLM(
         model=sampling_model,
         enforce_eager=True,
@@ -252,8 +256,16 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         max_model_len=131072,
         tensor_parallel_size=2,
     )
+
+    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    if sampling_temperature_override is not None:
+        if type(sampling_temperature_override) is str:
+            temperature = float(sampling_temperature_override)
+        else:
+            temperature = sampling_temperature_override
+
     sampling_params = SamplingParams(
-        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        temperature=temperature,
         max_tokens=12000,
         n=config["experiment"]["experiment_params"]["sampling_params"]["n"],
     )
@@ -297,14 +309,20 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         l_inputs[i]["gt_logprob_tokens"] = gt_logprob_toks[i]
 
     df_output = pd.DataFrame(l_inputs)
-    df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
+
+    save_path = os.path.join("output", experiment_hash, "data", "prompted_translation.parquet")
+    if save_path_override is not None:
+        save_path = save_path_override.replace("__HASH__", experiment_hash)
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    df_output.to_parquet(save_path)
 
     kill_vllm_process(llm)
 
 
 
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None):
+def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None, system_prompt_override=None, user_prompt_suffix_override=None, sampling_temperature_override=None):
     from openai import AsyncOpenAI
     from asyncio import Semaphore
     import asyncio
@@ -347,6 +365,13 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
 
             row_translation_prompt += "\n" + row["few_shot_examples"]
 
+        if system_prompt_override is not None:
+            row_translation_prompt = system_prompt_override
+
+        user_prompt_suffix = ""
+        if user_prompt_suffix_override is not None:
+            user_prompt_suffix = user_prompt_suffix_override
+
         l_inputs.append(
             {
                 # note that reference text here is the encoded form.
@@ -356,7 +381,7 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
                     {"role": "system", "content": row_translation_prompt},
                     {
                         "role": "user",
-                        "content": f"Do not output anything other than your conversion (do not think before outputting). Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
+                        "content": f"Do not output anything other than your conversion (do not think before outputting). {user_prompt_suffix}Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
                     },
                 ],
             }
@@ -368,6 +393,12 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
     base_url = config["experiment"]["experiment_params"]["base_url"]
     model_name = config["experiment"]["experiment_params"]["model"]
     temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    if sampling_temperature_override is not None:
+        if type(sampling_temperature_override) is str:
+            temperature = float(sampling_temperature_override)
+        else:
+            temperature = sampling_temperature_override
+
     api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
 
     d_additional_kwargs = {}
@@ -384,7 +415,7 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
         base_url=base_url,
     )
  
-    rate_limit = Semaphore(30)
+    rate_limit = Semaphore(100)
     async def run_chat(conversation):
         max_tokens = 12000
         if model_name.startswith("claude-3-haiku") or model_name.startswith("claude-3-opus") or model_name.startswith("claude-3-5-haiku"):

@@ -1,0 +1,216 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: exit_cot_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: numina_math_cot_16000
+    validation_set_frac: 0.05
+
+    sampling_params:
+      temperature: 0.5
+      n: 4
+
+    sft_params:
+      batch_size: 64
+      learning_rate: 2e-6
+      clip_grad: 1.0
+      num_epochs: 1
+      weight_decay: 0.0
+
+    translation_prompt: ${encoding_scheme}
+    
+    use_sft_model_for_sampling: True
+
+  experiment_tags:
+
+stages:
+  - name: generate_ground_truth_translation_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs: {}
+
+  - name: generate_sft_dataset_cot_0
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_sft_dataset
+      function_kwargs: {}
+
+  - name: sft_model_0
+    executor:
+      path: sft/sft_runner.py
+      function_name: sft_model
+      function_kwargs: {}
+
+  - name: generate_math500_cot_0
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_prompted_translation
+      function_kwargs:
+        save_path_override: output/__HASH__/data/exit0/prompted_cot.parquet
+        num_samples_override: 2
+        gt_translation_path_override: output/__HASH__/data/ground_truth_translation_train.parquet
+    task_options:
+      num_gpus: 4
+
+  - name: evaluate_math_accuracy_0
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs:
+        input_path_override: output/__HASH__/data/exit0/prompted_cot.parquet
+        output_path_override: output/__HASH__/data/exit0/math_scores.parquet
+
+  - name: judge_cot_style_adherence_0
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs:
+        generated_cot_path_override: output/__HASH__/data/exit0/prompted_cot.parquet
+
+  - name: generate_ExIt_dataset_1
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ExIt_dataset
+      function_kwargs:
+        prompted_cot_path_override: output/__HASH__/data/exit0/prompted_cot.parquet
+        math_accuracy_path_override: output/__HASH__/data/exit0/math_scores.parquet
+        save_path_override: output/__HASH__/data/exit1/sft_train.parquet
+
+  - name: combine_train_files_1
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_parquet_files
+      function_kwargs:
+        exit0_train: output/__HASH__/data/sft_train.parquet
+        exit1_train: output/__HASH__/data/exit1/sft_train.parquet
+        to_template: output/__HASH__/data/exit1/sft_train_combined.parquet
+
+  - name: sft_model_1
+    executor:
+      path: sft/sft_runner.py
+      function_name: sft_model
+      function_kwargs:
+        train_path_override: output/__HASH__/data/exit1/sft_train_combined.parquet
+        save_path_override: output/__HASH__/data/exit1/sft_model
+
+  - name: generate_math500_cot_1
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_prompted_translation
+      function_kwargs:
+        model_path_override: output/__HASH__/data/exit1/sft_model/last
+        save_path_override: output/__HASH__/data/exit1/prompted_cot.parquet
+        num_samples_override: 2
+        gt_translation_path_override: output/__HASH__/data/ground_truth_translation_train.parquet
+    task_options:
+      num_gpus: 4
+
+  - name: evaluate_math_accuracy_1
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs:
+        input_path_override: output/__HASH__/data/exit1/prompted_cot.parquet
+        output_path_override: output/__HASH__/data/exit1/math_scores.parquet
+
+  - name: judge_cot_style_adherence_1
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs:
+        generated_cot_path_override: output/__HASH__/data/exit1/prompted_cot.parquet
+
+  - name: generate_ExIt_dataset_2
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ExIt_dataset
+      function_kwargs:
+        prompted_cot_path_override: output/__HASH__/data/exit1/prompted_cot.parquet
+        math_accuracy_path_override: output/__HASH__/data/exit1/math_scores.parquet
+        save_path_override: output/__HASH__/data/exit2/sft_train.parquet
+
+  - name: combine_train_files_2
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_parquet_files
+      function_kwargs:
+        exit0_train: output/__HASH__/data/sft_train.parquet
+        exit1_train: output/__HASH__/data/exit1/sft_train.parquet
+        exit2_train: output/__HASH__/data/exit2/sft_train.parquet
+        to_template: output/__HASH__/data/exit2/sft_train_combined.parquet
+
+  - name: sft_model_2
+    executor:
+      path: sft/sft_runner.py
+      function_name: sft_model
+      function_kwargs:
+        train_path_override: output/__HASH__/data/exit2/sft_train_combined.parquet
+        save_path_override: output/__HASH__/data/exit2/sft_model
+
+  - name: generate_math500_cot_2
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_prompted_translation
+      function_kwargs:
+        model_path_override: output/__HASH__/data/exit2/sft_model/last
+        save_path_override: output/__HASH__/data/exit2/prompted_cot.parquet
+        num_samples_override: 2
+        gt_translation_path_override: output/__HASH__/data/ground_truth_translation_train.parquet
+    task_options:
+      num_gpus: 4
+
+  - name: evaluate_math_accuracy_2
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs:
+        input_path_override: output/__HASH__/data/exit2/prompted_cot.parquet
+        output_path_override: output/__HASH__/data/exit2/math_scores.parquet
+
+  - name: judge_cot_style_adherence_2
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs:
+        generated_cot_path_override: output/__HASH__/data/exit2/prompted_cot.parquet
+
+
+  - name: generate_ground_truth_translation_math500_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_ground_truth_translation
+      function_kwargs:
+        dataset_override: prm800k_test_raw
+        validation_set_frac_override: 0.0
+
+  - name: generate_math500_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_prompted_translation
+      function_kwargs:
+        model_path_override: output/__HASH__/data/exit2/sft_model/last
+        save_path_override: output/__HASH__/data/final/prompted_cot.parquet
+
+  - name: evaluate_math_accuracy
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs:
+        input_path_override: output/__HASH__/data/final/prompted_cot.parquet
+        output_path_override: output/__HASH__/data/final/math_scores.parquet
+
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs:
+        generated_cot_path_override: output/__HASH__/data/final/prompted_cot.parquet
+
+    
+

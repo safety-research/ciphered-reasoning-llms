@@ -59,6 +59,33 @@ def reverse_letters_in_each_word_no_math_expressions_cipher(s):
     return " ".join(l_words)
 
 
+def reverse_letters_in_each_word_math_expressions_only_cipher(s):
+    l_words = s.split(" ")
+    for i, word in enumerate(l_words):
+        is_math_expr = False
+
+        if is_latex(word):
+            is_math_expr = True
+        
+        has_math_expr = False
+        for math_expr_char in ["+", "-", "/", "*", "<", ">", "=", "^", "f(x)", "\\sum"]:
+            if math_expr_char in word:
+                has_math_expr = True
+                break
+        if has_math_expr:
+            is_math_expr = True
+
+        if word.isdigit():
+            is_math_expr = True
+
+        if not is_math_expr:
+            continue
+            
+        l_words[i] = l_words[i][::-1]
+
+    return " ".join(l_words)
+
+
 def get_English_dictionary():
     with open(os.path.join(os.path.dirname(__file__), "..", "data", "raw", "english_dictionary", "words_dictionary.json"), "r") as fp:
         return set(json.load(fp).keys())

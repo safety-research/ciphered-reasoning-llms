@@ -8,7 +8,7 @@ torchrun    --nproc_per_node=$NUM_GPUS_PER_NODE \
   --master_addr=$MASTER_ADDR \
   --master_port=$MASTER_PORT \
      -m verl.trainer.fsdp_sft_trainer \
-    data.train_files=$TRAIN_PATH \
+    data.train_files="$TRAIN_PATH" \
     data.val_files=$VALID_PATH \
     data.train_batch_size=$BATCH_SIZE \
     data.micro_batch_size_per_gpu=$MICRO_BATCH_SIZE \

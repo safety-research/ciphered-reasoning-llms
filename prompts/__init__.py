@@ -194,6 +194,7 @@ PROMPT_MAP = {
     "reverse_reverse_letters_in_each_word": reverse_reverse_letters_in_each_word_prompt,
     "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word_prompt,
     "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_prompt,
+    "speaking_reverse_letters_in_each_word_only_math_expressions": reverse_letters_in_each_word_prompt,
 
     "random_permute_letters_in_each_word": random_permute_letters_in_each_word_prompt,
     "reverse_random_permute_letters_in_each_word": reverse_random_permute_letters_in_each_word_prompt,

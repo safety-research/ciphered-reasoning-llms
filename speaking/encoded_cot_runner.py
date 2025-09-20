@@ -192,7 +192,7 @@ def generate_sft_dataset(config):
 
 
 @ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_prompted_translation(config):
+def generate_prompted_translation(config, gt_translation_path_override=None, model_path_override=None, save_path_override=None, num_samples_override=None, sampling_temperature_override=None):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
@@ -204,9 +204,10 @@ def generate_prompted_translation(config):
 
     experiment_hash = compute_experiment_hash(config)
 
-    ground_truth_translation = pd.read_parquet(
-        os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
-    )
+    gt_translation_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    if gt_translation_path_override is not None:
+        gt_translation_path = gt_translation_path_override.replace("__HASH__", experiment_hash)
+    ground_truth_translation = pd.read_parquet(gt_translation_path)
 
     # Build the prompt
     translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
@@ -246,23 +247,39 @@ def generate_prompted_translation(config):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for generation instead...")
 
+    if model_path_override is not None:
+        sampling_model = model_path_override.replace("__HASH__", experiment_hash)
+        print(f"Using model path override {sampling_model}")
+
+    n_gpus = len(ray.get_gpu_ids())
     llm = LLM(
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.8,
         rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
         max_model_len=131072,
-        tensor_parallel_size=2,
+        tensor_parallel_size=n_gpus,
     )
+
+    num_samples = config["experiment"]["experiment_params"]["sampling_params"]["n"]
+    if num_samples_override is not None:
+        num_samples = num_samples_override
+
+    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    if sampling_temperature_override is not None:
+        if type(sampling_temperature_override) is str:
+            temperature = float(sampling_temperature_override)
+        else:
+            temperature = sampling_temperature_override
 
     extra_sampling_kwargs = {}
     if config["experiment"]["experiment_params"]["encoding_scheme"] == "speaking_zero_shot":
         from vllm.sampling_params import GuidedDecodingParams
         extra_sampling_kwargs['guided_decoding'] = GuidedDecodingParams(regex=r"\\boxed\{.+\}")
     sampling_params = SamplingParams(
-        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        temperature=temperature,
         max_tokens=12000,
-        n=config["experiment"]["experiment_params"]["sampling_params"]["n"],
+        n=num_samples,
         **extra_sampling_kwargs
     )
 
@@ -304,13 +321,19 @@ def generate_prompted_translation(config):
         l_inputs[i]["gt_logprob_tokens"] = gt_logprob_toks[i]
 
     df_output = pd.DataFrame(l_inputs)
-    df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
+
+    save_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    if save_path_override is not None:
+        save_path = save_path_override.replace("__HASH__", experiment_hash)
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    df_output.to_parquet(save_path)
 
     kill_vllm_process(llm)
 
 
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_openai_prompted_translation(config):
+def generate_openai_prompted_translation(config, system_prompt_override=None, user_prompt_suffix_override=None, sampling_temperature_override=None):
     from openai import AsyncOpenAI
     from asyncio import Semaphore
     import asyncio
@@ -352,6 +375,13 @@ def generate_openai_prompted_translation(config):
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
             row_translation_prompt += "\n" + row["few_shot_examples"]
 
+        if system_prompt_override is not None:
+            row_translation_prompt = system_prompt_override
+
+        user_prompt_suffix = ""
+        if user_prompt_suffix_override is not None:
+            user_prompt_suffix = user_prompt_suffix_override
+
         l_inputs.append(
             {
                 "answer": row["answer"],
@@ -361,7 +391,7 @@ def generate_openai_prompted_translation(config):
                     {"role": "system", "content": row_translation_prompt},
                     {
                         "role": "user",
-                        "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding.",
+                        "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding. {user_prompt_suffix}",
                     },
                 ] + l_prefill,
             }
@@ -371,6 +401,12 @@ def generate_openai_prompted_translation(config):
     base_url = config["experiment"]["experiment_params"]["base_url"]
     model_name = config["experiment"]["experiment_params"]["model"]
     temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    if sampling_temperature_override is not None:
+        if type(sampling_temperature_override) is str:
+            temperature = float(sampling_temperature_override)
+        else:
+            temperature = sampling_temperature_override
+
     api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
 
     d_additional_kwargs = {}
@@ -387,7 +423,7 @@ def generate_openai_prompted_translation(config):
         base_url=base_url,
     )
  
-    rate_limit = Semaphore(30)
+    rate_limit = Semaphore(100)
     async def run_chat(conversation):
         max_tokens = 12000
         if model_name.startswith("claude-3-haiku") or model_name.startswith("claude-3-opus") or model_name.startswith("claude-3-5-haiku"):
@@ -440,7 +476,7 @@ def generate_openai_prompted_translation(config):
 
 
 
-def judge_cot_style_adherence_deterministically(config):
+def judge_cot_style_adherence_deterministically(config, generated_cot_path_override=None):
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from encoding_schemes import get_deterministic_adherence_fn
     
@@ -449,6 +485,9 @@ def judge_cot_style_adherence_deterministically(config):
     experiment_hash = compute_experiment_hash(config)
 
     generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    if generated_cot_path_override is not None:
+        generated_cot_path = generated_cot_path_override.replace("__HASH__", experiment_hash)
+
     df_generated_cot = pd.read_parquet(generated_cot_path)
 
     l_judge_scores = []
@@ -465,14 +504,14 @@ def judge_cot_style_adherence_deterministically(config):
 
 
 @ray.remote(num_cpus=16, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def judge_cot_style_adherence(config):
+def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_path_override=None):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from encoding_schemes import get_deterministic_adherence_fn
     from speaking.encoded_cot_runner import judge_cot_style_adherence_deterministically
 
     if get_deterministic_adherence_fn(config["experiment"]["experiment_params"]["encoding_scheme"], config) is not None:
-        judge_cot_style_adherence_deterministically(config)
+        judge_cot_style_adherence_deterministically(config, generated_cot_path_override=generated_cot_path_override)
         return
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -482,9 +521,15 @@ def judge_cot_style_adherence(config):
     experiment_hash = compute_experiment_hash(config)
 
     generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    if generated_cot_path_override is not None:
+        generated_cot_path = generated_cot_path_override.replace("__HASH__", experiment_hash)
+
     df_generated_cot = pd.read_parquet(generated_cot_path)
 
     sft_ref_path = os.path.join("output", experiment_hash, "data", "sft.parquet")
+    if sft_ref_path_override is not None:
+        sft_ref_path = sft_ref_path_override.replace("__HASH__", experiment_hash)
+
     df_sft = pd.read_parquet(sft_ref_path)
 
     translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
@@ -962,3 +1007,52 @@ def ensure_fireworks_deployment(config):
 
 def tear_down_fireworks_deployment(config):
     pass
+
+
+@ray.remote(num_cpus=1, retry_exceptions=True, memory=32 * 1024 * 1024 * 1024)
+def generate_ExIt_dataset(config, prompted_cot_path_override=None, math_accuracy_path_override=None, save_path_override=None):
+    assert prompted_cot_path_override is not None
+    assert save_path_override is not None
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+
+    experiment_hash = compute_experiment_hash(config)
+
+    prompted_cot_path = prompted_cot_path_override.replace("__HASH__", experiment_hash)
+    math_accuracy_path = math_accuracy_path_override.replace("__HASH__", experiment_hash)
+    save_path = save_path_override.replace("__HASH__", experiment_hash)
+
+    df_prompted_cot = pd.read_parquet(prompted_cot_path)
+    df_math_accuracy = pd.read_parquet(math_accuracy_path)
+
+    assert len(df_prompted_cot) == len(df_math_accuracy)
+
+    l_training_data = []
+    for i in range(len(df_prompted_cot)):
+        d_example = None
+
+        prompted_cot_row = df_prompted_cot.iloc[i]
+        math_acc_row = df_math_accuracy.iloc[i]
+
+        n_samples = len(prompted_cot_row['model_cot'])
+        for j in range(n_samples):
+            if math_acc_row['is_corrects'][j] == 1.0 and prompted_cot_row['followed_encoding_style'][j] == 1.0:
+                d_example = {
+                    'messages': list(prompted_cot_row['prompt']) + [{
+                        'role': 'assistant',
+                        'content': prompted_cot_row['model_cot'][j]
+                    }]
+                }
+                break
+
+        if d_example is not None:
+            l_training_data.append(d_example)
+
+    
+    df = pd.DataFrame(l_training_data)
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    df.to_parquet(save_path)
+
+    print(f"Saved {len(df)} rows to {save_path}")

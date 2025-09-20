@@ -32,6 +32,7 @@ from encoding_schemes.compression import (
 from encoding_schemes.letter_permutations import (
     reverse_letters_in_each_word,
     reverse_letters_in_each_word_no_math_expressions_cipher,
+    reverse_letters_in_each_word_math_expressions_only_cipher,
     random_permute_letters_in_each_word,
     swap_even_odd_letters_in_each_word,
     reverse_fibonacci_indices_in_each_word,
@@ -140,6 +141,7 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "speaking_rot13_cipher": rot13_cipher,
 
         "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_no_math_expressions_cipher,
+        "speaking_reverse_letters_in_each_word_only_math_expressions": reverse_letters_in_each_word_math_expressions_only_cipher,
 
         "base64_cipher": base64_cipher,
         "reverse_base64_cipher": base64_cipher,
@@ -253,6 +255,7 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
         "speaking_gzip_to_base64_encoded": inverse_gzip_to_base64_encoded,
         "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word, # reverse word letters is symmetric
         "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_no_math_expressions_cipher,
+        "speaking_reverse_letters_in_each_word_only_math_expressions": reverse_letters_in_each_word_math_expressions_only_cipher,
         "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word, # symmetric
         "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word, # also symmetric
 
@@ -338,6 +341,7 @@ def get_deterministic_adherence_fn(encoding_scheme_name, config):
         "speaking_gzip_to_base64_encoded": calculate_gzip_base64_adherence,
         "speaking_reverse_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word),
         "speaking_reverse_letters_in_each_word_no_math_expressions": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word_no_math_expressions_cipher),
+        "speaking_reverse_letters_in_each_word_only_math_expressions": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word_math_expressions_only_cipher),
         "speaking_swap_even_odd_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, swap_even_odd_letters_in_each_word),
         "speaking_reverse_fibonacci_indices_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_fibonacci_indices_in_each_word),
         

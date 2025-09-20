@@ -78,3 +78,69 @@ fi
 # sudo fuser -v /dev/nvidia* 2>&1 | grep python | grep -o -E " [0-9]+ " | xargs kill
 
 # export HF_HOME=/scratch/hf_cache
+
+
+# ip addresses
+
+
+# # head node
+# ssh ubuntu@147.185.40.54
+
+# ssh ubuntu@147.185.40.213
+
+# ssh ubuntu@147.185.40.98
+
+# ssh ubuntu@147.185.41.188
+
+# source ~/.bashrc
+# source ~/.env_anthropic
+# ulimit -n 65535
+# source ~/sky_workdir/anthropic/bin/activate
+# ray stop --force
+# cd ~/sky_workdir/encoding-schemes
+# RAY_kill_child_processes_on_worker_exit_with_raylet_subreaper=true ray start --address='10.15.14.41:9265' 
+
+
+# RAY_kill_child_processes_on_worker_exit_with_raylet_subreaper=true ray start --address='10.15.14.41:9265' --resources='{"long_running_job": 1}'
+
+
+# RAY_kill_child_processes_on_worker_exit_with_raylet_subreaper=true ray start --head --port 9265
+
+# source ~/sky_workdir/anthropic/bin/activate
+
+
+# source ~/sky_workdir/anthropic/bin/activate
+#   ray start --address='10.15.14.41:9265' 
+  
+#   --resources='{"long_running_job": 1}'
+
+
+# sudo ifstat
+# sudo ip link set dev enp27s0f0np0 mtu 1500
+# sudo ethtool -K enp27s0f0np0 tso on gso on gro off rx on tx on lro off
+
+# sudo sysctl -w net.core.rmem_max=268435456
+# sudo sysctl -w net.core.wmem_max=268435456
+# sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 268435456"
+# sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 268435456"
+
+# sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
+# sudo sysctl -w net.core.optmem_max=4194304
+# sudo ethtool -C enp27s0f0np0 rx-usecs 25
+
+
+# ethtool -l enp27s0f0np0
+
+
+
+# check list
+# 1. nfs mount
+# 2. scratch is mounted
+# 3. apt-get installed
+# 4. .env_anthropic
+# 5. .ssh
+# 6. .cache/huggingface/token
+# 7. HF_HOME
+# 8. EXPORTS
+# 9. ulimit
+# 10. cd encoding schemes

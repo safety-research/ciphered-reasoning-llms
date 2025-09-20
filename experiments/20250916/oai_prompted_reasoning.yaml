@@ -1,0 +1,61 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: mathcot_fewshot_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: numina_math_cot_16000
+    validation_set_frac: 0.05
+
+    sampling_params:
+      temperature: 1.0
+      n: 1
+
+    base_url: https://api.openai.com/v1/
+
+    translation_prompt: ${encoding_scheme}
+
+    n_few_shot_examples: 8
+
+  experiment_tags:
+    numina_math_cot_rerun: True
+
+stages:
+  - name: generate_math500_cot
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs:
+        user_prompt_suffix_override: ${user_prompt_suffix_override}
+
+    force_overwrite: True
+    
+  - name: evaluate_math_accuracy
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs: {}
+
+    force_overwrite: True
+
+
+  - name: judge_cot_style_adherence
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+
+    force_overwrite: True
+
+  - name: combine_all_result_dfs
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_translation_math_cot_dfs
+      function_kwargs: {}
+      
+    force_overwrite: True
+    

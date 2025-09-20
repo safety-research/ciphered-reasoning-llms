@@ -1,0 +1,8 @@
+{
+    "encoding_scheme": [
+        "speaking_reverse_letters_in_each_word"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-7B-Instruct"
+    ]
+}

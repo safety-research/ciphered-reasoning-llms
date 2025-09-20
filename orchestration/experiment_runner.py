@@ -3,6 +3,7 @@ import yaml
 import os
 import sys
 import ray
+from copy import deepcopy
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -50,12 +51,43 @@ def load_stage_executor(stage_config):
     return getattr(module, function_name)
 
 
+def build_loop_for_stage(stage):
+    d_loop_for = stage["loop_for"]
+
+    params = d_loop_for["params"]
+    d_template = d_loop_for["template"]
+
+    # assert zip
+    param_len = None
+    for param in params.values():
+        if param_len is None:
+            param_len = len(param)
+            continue
+        
+        assert len(param) == param_len
+
+    l_loop_for = []
+    for i in range(param_len):
+        template = deepcopy(d_template)
+        for key in list(template.keys()):
+            for param_name, param_values in params.items():
+                template[key] = template[key].replace(f"__{param_name}__", str(param_values[i]))
+
+        l_loop_for.append(template)
+
+    stage["loop_for_config"] = stage["loop_for"]
+    stage["loop_for"] = l_loop_for
+
+
 def load_experiment_steps(config):
     l_stages = []
 
     l_stages.append({"executor": init_experiment_meta_dict, "kwargs": {}, "name": "init_experiment_meta_dict"})
 
     for stage in config["stages"]:
+        if "loop_for" in stage:
+            build_loop_for_stage(stage)
+
         l_stages.append(
             {
                 **stage,
@@ -111,7 +143,16 @@ def execute_pipeline(config):
         executor = stage["executor"]
         if stage.get("task_options", None) is not None:
             executor = executor.options(**stage["task_options"])
-        ray.get(executor.remote(config, **stage["kwargs"]))
+        l_tasks = []
+        if stage.get("loop_for", None) is not None:
+            l_d_loop_for = stage["loop_for"]
+
+            # partial stage checkpointing not yet supported :(
+            for d_loop_for in l_d_loop_for:
+                l_tasks.append(executor.remote(config, **stage["kwargs"], **d_loop_for))
+        else:
+            l_tasks.append(executor.remote(config, **stage["kwargs"]))
+        ray.get(l_tasks)
         print(f"Done with {stage['name']}")
 
         with open(os.path.join(checkpoints_dir, stage["name"]), "w") as fp:

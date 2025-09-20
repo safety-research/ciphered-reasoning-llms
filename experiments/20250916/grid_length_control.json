@@ -1,0 +1,10 @@
+{
+    "encoding_scheme": [
+        "speaking_reverse_letters_in_each_word",
+        "speaking_reverse_letters_in_each_word_no_math_expressions",
+        "speaking_identity"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-14B-Instruct"
+    ]
+}

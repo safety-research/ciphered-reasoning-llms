@@ -133,14 +133,17 @@ def take_first_n_rows(config, df_path, n_rows):
 
 
 @ray.remote(num_cpus=1, memory=64 * 1024 * 1024 * 1024)
-def combine_translation_math_cot_dfs(config, fake_prompted_cot_math_dfs=False):
+def combine_translation_math_cot_dfs(config, fake_prompted_cot_math_dfs=False, gt_translation_path_override=None, prompted_cot_path_override=None, math_scores_path_override=None, prompted_translation_path_override=None, bleu_scores_path_override=None, output_path_override=None):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
     experiment_hash = compute_experiment_hash(config)
 
-    df_gt_translation = pd.read_parquet(os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet"))
+    gt_translation_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    if gt_translation_path_override is not None:
+        gt_translation_path = gt_translation_path_override.replace("__HASH__", experiment_hash)
+    df_gt_translation = pd.read_parquet(gt_translation_path)
 
     d_prompted_cot_cols = {
         "prompt": "cot_prompt",
@@ -162,10 +165,27 @@ def combine_translation_math_cot_dfs(config, fake_prompted_cot_math_dfs=False):
             for k in d_math_score_cols.keys()
         })
     else:
-        df_prompted_cot = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
-        df_math_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "math_scores.parquet"))
-    df_prompted_translation = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
-    df_bleu_scores = pd.read_parquet(os.path.join("output", experiment_hash, "data", "bleu_scores.parquet"))
+        prompted_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+        if prompted_cot_path_override is not None:
+            prompted_cot_path = prompted_cot_path_override.replace("__HASH__", experiment_hash)
+        df_prompted_cot = pd.read_parquet(prompted_cot_path)
+
+        math_scores_path = os.path.join("output", experiment_hash, "data", "math_scores.parquet")
+        if math_scores_path_override is not None:
+            math_scores_path = math_scores_path_override.replace("__HASH__", experiment_hash)
+
+        df_math_scores = pd.read_parquet(math_scores_path)
+        
+    prompted_translation_path = os.path.join("output", experiment_hash, "data", "prompted_translation.parquet")
+    if prompted_translation_path_override is not None:
+        prompted_translation_path = prompted_translation_path_override.replace("__HASH__", experiment_hash)
+
+    df_prompted_translation = pd.read_parquet(prompted_translation_path)
+
+    bleu_score_path = os.path.join("output", experiment_hash, "data", "bleu_scores.parquet")
+    if bleu_scores_path_override is not None:
+        bleu_score_path = bleu_scores_path_override.replace("__HASH__", experiment_hash)
+    df_bleu_scores = pd.read_parquet(bleu_score_path)
 
     l_dfs = [df_gt_translation, df_prompted_cot, df_math_scores, df_prompted_translation, df_bleu_scores]
     for i in range(len(l_dfs)):
@@ -203,6 +223,10 @@ def combine_translation_math_cot_dfs(config, fake_prompted_cot_math_dfs=False):
     df_final = pd.concat(l_dfs_to_concat, axis='columns')
 
     target_path = os.path.join("output", experiment_hash, "data", "joined_output.parquet")
+    if output_path_override is not None:
+        target_path = output_path_override.replace("__HASH__", experiment_hash)
+    
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
     df_final.to_parquet(target_path)
     print(f"Wrote {len(df_final)} rows to {target_path}")
 

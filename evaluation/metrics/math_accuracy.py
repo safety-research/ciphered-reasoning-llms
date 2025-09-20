@@ -35,19 +35,24 @@ class timeout:
 
 
 @ray.remote(num_cpus=1)
-def evaluate_math_accuracy(config):
+def evaluate_math_accuracy(config, input_path_override=None, output_path_override=None):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from evaluation.metrics.math_accuracy import extract_answer, timeout
 
     experiment_hash = compute_experiment_hash(config)
-    df = pd.read_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
+
+    input_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    if input_path_override is not None:
+        input_path = input_path_override.replace("__HASH__", experiment_hash)
+
+    df = pd.read_parquet(input_path)
 
     l_correct = []
     for i, row in df.iterrows():
         l_sample_correct = []
 
-        for n in range(config["experiment"]["experiment_params"]["sampling_params"]["n"]):
+        for n in range(len(row['model_cot'])):
             try:
                 with timeout():
                     extracted_model_response = extract_answer(row["model_cot"][n])
@@ -76,4 +81,9 @@ def evaluate_math_accuracy(config):
 
     df["is_corrects"] = l_correct
 
-    df.to_parquet(os.path.join("output", experiment_hash, "data", "math_scores.parquet"))
+    output_path = os.path.join("output", experiment_hash, "data", "math_scores.parquet")
+    if output_path_override is not None:
+        output_path = output_path_override.replace("__HASH__", experiment_hash)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    df.to_parquet(output_path)

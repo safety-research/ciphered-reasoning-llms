@@ -1,0 +1,55 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: mathcot_fewshot_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: numina_math_cot_16000
+    validation_set_frac: 0.05
+
+    sampling_params:
+      temperature: 1.0
+      n: 1
+
+    base_url: https://api.openai.com/v1/
+
+    translation_prompt: ${encoding_scheme}
+
+    n_few_shot_examples: 8
+
+  experiment_tags:
+    numina_math_cot_rerun: True
+
+stages:
+  - name: generate_math500_reverse_translation
+    executor:
+      path: translation/run_reverse_translation.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs:
+        skip_too_long: False
+        reference_text_col: raw_translated_cot
+        translated_text_col: reference_solution
+
+        system_prompt_override: ${system_prompt_override}
+    
+    force_overwrite: True
+
+  - name: evaluate_bleu_score
+    executor:
+      path: evaluation/metrics/translation.py
+      function_name: evaluate_bleu_score
+      function_kwargs: {}
+
+    force_overwrite: True
+
+  - name: combine_all_result_dfs
+    executor:
+      path: utils/io_utils.py
+      function_name: combine_translation_math_cot_dfs
+      function_kwargs: {}
+
+    force_overwrite: True

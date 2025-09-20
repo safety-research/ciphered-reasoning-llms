@@ -66,7 +66,7 @@ def pick_free_port() -> int:
 
 
 @ray.remote(num_cpus=1, num_gpus=8, memory=1024 * 1024 * 1024 * 512)
-def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=None, cpu_offload_override=None, micro_batch_size_override=None):
+def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=None, cpu_offload_override=None, micro_batch_size_override=None, sft_model_override=None, train_path_override=None, save_path_override=None):
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from sft.sft_runner import pick_free_port
 
@@ -75,6 +75,9 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
 
     train_path = os.path.join(hash_dir, "data", "sft_train.parquet")
     valid_path = os.path.join(hash_dir, "data", "sft.parquet")
+
+    if train_path_override is not None:
+        train_path = train_path_override.replace("__HASH__", experiment_hash)
 
     n_gpus = len(ray.get_gpu_ids())
 
@@ -105,6 +108,13 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
 
     batch_size = config["experiment"]["experiment_params"]["sft_params"]["batch_size"]
     ref_model = config["experiment"]["experiment_params"]["model"]
+    ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
+
+    if sft_model_override is not None:
+        sft_model_override = sft_model_override.replace("__HASH__", experiment_hash)
+        print(f"Overriding SFT model {ref_model} with {sft_model_override}")
+        ref_model = sft_model_override
+
     lr = config["experiment"]["experiment_params"]["sft_params"]["learning_rate"]
     clip_grad = config["experiment"]["experiment_params"]["sft_params"]["clip_grad"]
     num_epochs = config["experiment"]["experiment_params"]["sft_params"]["num_epochs"]
@@ -115,6 +125,9 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
     save_freq = config["experiment"]["experiment_params"]["sft_params"].get("save_freq", -1)
 
     save_path = os.path.join(hash_dir, "sft_model")
+    if save_path_override is not None:
+        save_path = save_path_override.replace("__HASH__", experiment_hash)
+
     project_name = config["experiment"]["project_name"]
     experiment_name = config["experiment"]["experiment_name"]
 
@@ -125,8 +138,6 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
 
         batch_size = n_examples / dynamic_batch_size_steps
         batch_size = int(batch_size / 4) * 4
-
-    ref_model_size = int(re.search("([0-9]+)B", ref_model).group(1))
 
     dp_size = (4 * num_nodes)
     micro_batch_size = max(1, batch_size // dp_size)
@@ -160,7 +171,7 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
     MASTER_ADDR={master_addr}
     MASTER_PORT={master_port}
 
-    TRAIN_PATH={train_path}
+    TRAIN_PATH='{train_path}'
     VALID_PATH={valid_path}
     BATCH_SIZE={batch_size}
     MICRO_BATCH_SIZE={micro_batch_size}
@@ -298,6 +309,79 @@ def multinode_sft_model(config, nnodes = None, detach_pg: bool = False, task_opt
         )
 
     ray.get(l_tasks)
+
+
+@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+def get_sft_validation_loss_from_vllm(config, model_path_override=None, save_path_override=None):
+    from vllm import LLM, SamplingParams
+    from transformers import AutoTokenizer
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+    from orchestration.experiment_meta_saver import compute_experiment_hash
+    from utils.vllm import kill_vllm_process, get_assistant_turn_token_boundaries
+
+    experiment_hash = compute_experiment_hash(config)
+
+    df_valid = pd.read_parquet(os.path.join("output", experiment_hash, "data", "sft.parquet"))
+
+    # Generate the outputs
+    sampling_model = config["experiment"]["experiment_params"]["model"]
+    assert "Qwen" in sampling_model, "RoPE scaling for Llama not yet implemented"
+    model_size = int(re.search("([0-9]+)B", sampling_model).group(1))
+
+    tokenizer = AutoTokenizer.from_pretrained(sampling_model)
+
+    if config["experiment"]["experiment_params"].get("use_sft_model_for_sampling", False):
+        sampling_model = f"output/{experiment_hash}/sft_model/last"
+        print(f"Using SFT model {sampling_model} for generation instead...")
+
+    if model_path_override is not None:
+        sampling_model = model_path_override.replace("__HASH__", experiment_hash)
+        print(f"Using model path override {sampling_model}")
+
+    llm = LLM(
+        model=sampling_model,
+        enforce_eager=True,
+        gpu_memory_utilization=0.7,
+        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        max_model_len=131072,
+        tensor_parallel_size=2,
+        max_num_batched_tokens=8192,
+        max_num_seqs=32
+    )
+
+    # Compute logprobs on GT for perplexity calculations
+    logprobs_sampling_params = SamplingParams(
+        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        max_tokens=1,
+        logprobs=0,
+        prompt_logprobs=1,
+        n=1,
+    )
+    l_logprobs_prompts = []
+    l_start_end = []
+    for prompt in df_valid['messages']:
+        l_logprobs_prompts.append(list(prompt))
+        l_start_end.append(get_assistant_turn_token_boundaries(prompt, tokenizer))
+
+    logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
+    gt_logprobs = [o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]] for i, o in enumerate(logprobs)]
+    gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
+    gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
+    gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
+
+    df_valid['gt_logprob_toks'] = gt_logprob_toks
+    df_valid['gt_logprobs'] = gt_logprobs
+
+    save_path = os.path.join("output", experiment_hash, "data", "valid_logprobs.parquet")
+    if save_path_override is not None:
+        save_path = save_path_override.replace("__HASH__", experiment_hash)
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    df_valid.to_parquet(save_path)
+
+    kill_vllm_process(llm)
 
 
 def convert_sft_parquet_to_jsonl(parquet_path, output_json_path):

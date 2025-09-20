@@ -1,0 +1,69 @@
+experiment:
+  table_name: encoding_schemes
+
+  project_name: encoding_schemes
+  experiment_name: math_cot_sft_${encoding_scheme}_${model_id}
+
+  experiment_params:
+    model: ${model_id}
+    encoding_scheme: ${encoding_scheme}
+
+    dataset: numina_math_cot_16000
+    validation_set_frac: 0.05
+
+    sampling_params:
+      temperature: 1.0
+      n: 4
+
+    sft_params:
+      batch_size: 192
+      learning_rate: 2e-6
+      clip_grad: 1.0
+      num_epochs: 1
+      weight_decay: 0.0
+      # preshuffled to maintain iid
+      shuffle: False
+
+    translation_prompt: ${encoding_scheme}
+    
+    use_sft_model_for_sampling: True
+
+  experiment_tags:
+    numina_math_cot_rerun: True
+
+stages:
+  - name: generate_math500_cot_temperature_sweep
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_prompted_translation
+      function_kwargs: {}
+    loop_for:
+      template:
+        save_path_override: output/__HASH__/data/temperature___TEMPERATURE__/prompted_cot.parquet
+        sampling_temperature_override: __TEMPERATURE__
+      params:
+        TEMPERATURE: [0.001, 0.1, 0.3, 0.5, 0.7, 1.0]
+
+  - name: evaluate_math_accuracy_temperature_sweep
+    executor:
+      path: evaluation/metrics/math_accuracy.py
+      function_name: evaluate_math_accuracy
+      function_kwargs: {}
+    loop_for:
+      template:
+        input_path_override: output/__HASH__/data/temperature___TEMPERATURE__/prompted_cot.parquet
+        output_path_override: output/__HASH__/data/temperature___TEMPERATURE__/math_scores.parquet
+      params:
+        TEMPERATURE: [0.001, 0.1, 0.3, 0.5, 0.7, 1.0]
+
+  - name: judge_cot_style_adherence_temperature_sweep
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: judge_cot_style_adherence
+      function_kwargs: {}
+    loop_for:
+      template:
+        generated_cot_path_override: output/__HASH__/data/temperature___TEMPERATURE__/prompted_cot.parquet
+      params:
+        TEMPERATURE: [0.001, 0.1, 0.3, 0.5, 0.7, 1.0]
+
