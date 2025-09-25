@@ -132,7 +132,8 @@ from prompts.speaking.themes import (
 )
 
 from prompts.reverse_translation.general import (
-    general_decoding_prompt
+    general_decoding_prompt,
+    general_decoding_cot_prompt
 )
 
 # ---- Central registry ----
@@ -251,7 +252,8 @@ PROMPT_MAP = {
     "speaking_five_emojis": speaking_five_emojis,
     "speaking_replace_math_content_with_black_box": speaking_replace_math_content_with_black_box,
 
-    "reverse_translation_general_decoding": general_decoding_prompt
+    "reverse_translation_general_decoding": general_decoding_prompt,
+    "reverse_translation_general_decoding_cot": general_decoding_cot_prompt,
 }
 
 

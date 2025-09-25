@@ -1,11 +1,21 @@
 {
     "encoding_scheme": [
-        "speaking_reverse_letters_in_each_word"
+        "speaking_space_between_chars",
+ "speaking_Arabic",
+ "speaking_caesar_cipher",
+ "speaking_French",
+ "speaking_Adyghe",
+ "speaking_Morse_code",
+ "speaking_Python",
+ "speaking_swap_even_odd_letters_in_each_word",
+ "speaking_base64_3x_cipher",
+ "remove_all_nouns",
+ "speaking_enterprise_Java",
+ "speaking_gzip_to_base64_encoded"
     ],
     "model_id": [
         "gpt-5-chat-latest",
         "gpt-4.1-2025-04-14",
-        "gpt-4.1-mini-2025-04-14",
-        "gpt-4.1-nano-2025-04-14"
+        "gpt-4.1-mini-2025-04-14"
     ]
 }

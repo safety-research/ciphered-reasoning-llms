@@ -157,6 +157,7 @@ stages:
       function_name: sft_model
       function_kwargs:
         micro_batch_size_override: 4
+        sft_model_override: output/__HASH__/sft_model/global_step_2432
     task_options:
       resources:
         long_running_job: 1

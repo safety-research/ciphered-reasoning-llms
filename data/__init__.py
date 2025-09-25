@@ -24,6 +24,8 @@ def get_dataset(dataset_name):
         return get_lmsys_chat_1m_1_turn_english().select(range(100000))
     elif dataset_name == "lmsys_chat_1m_1_turn_english_debug":
         return get_lmsys_chat_1m_1_turn_english().select(range(1000))
+    elif dataset_name == "numina_math_cot_1000":
+        return get_numina_math_cot_raw().select(range(1000))
     elif dataset_name == "numina_math_cot_8000":
         return get_numina_math_cot_raw().select(range(8000))
     elif dataset_name == "numina_math_cot_16000":

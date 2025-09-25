@@ -1,25 +1,8 @@
 {
     "encoding_scheme": [
-        "speaking_letter_to_word_with_dot",
-        "speaking_identity",
-        "speaking_dot_between_chars",
-        "speaking_zero_shot",
-        "speaking_rot13_cipher",
-        "speaking_reverse_letters_in_each_word",
-        "speaking_paraphrase_naive",
-        "speaking_pirate_speak",
-        "speaking_leet_speak",
-        "speaking_yoda_speak",
-        "speaking_shakespearean_text",
-        "speaking_insert_tweet",
-        "speaking_python_snippet_comment",
-        "speaking_croissant_news_article",
-        "speaking_math_textbook_article",
-        "speaking_five_emojis",
-        "speaking_replace_math_content_with_black_box"
+        "speaking_reverse_letters_in_each_word_no_math_expressions"
     ],
     "model_id": [
-        "Qwen/Qwen2.5-7B-Instruct",
-        "Qwen/Qwen2.5-7B"
+        "Qwen/Qwen2.5-14B-Instruct"
     ]
 }

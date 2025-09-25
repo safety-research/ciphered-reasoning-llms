@@ -1,13 +1,8 @@
 {
     "encoding_scheme": [
-        "speaking_identity",
-        "speaking_zero_shot",
-        "speaking_dot_between_chars",
         "speaking_letter_to_word_with_dot"
     ],
     "model_id": [
-        "Qwen/Qwen2.5-3B-Instruct",
-        "Qwen/Qwen2.5-7B-Instruct",
         "Qwen/Qwen2.5-14B-Instruct"
     ]
 }

@@ -13,7 +13,9 @@ experiment:
 
     sampling_params:
       temperature: 1.0
-      n: 4
+      n: 1
+
+    base_url: https://api.anthropic.com/v1/
 
     translation_prompt: ${encoding_scheme}
     
@@ -141,18 +143,24 @@ stages:
   - name: generate_math500_reverse_translation
     executor:
       path: translation/run_reverse_translation.py
-      function_name: generate_prompted_translation
+      function_name: generate_openai_prompted_translation
       function_kwargs:
         skip_too_long: False
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
-        translation_prompt_override: reverse_translation_general_decoding
+        translation_prompt_override: reverse_translation_general_decoding_cot
+        prompt_prefix_override: ""
+        translation_extraction_tag: translation
+
+    force_overwrite: True
 
   - name: evaluate_bleu_score
     executor:
       path: evaluation/metrics/translation.py
       function_name: evaluate_bleu_score
       function_kwargs: {}
+
+    force_overwrite: True
 
   - name: combine_all_result_dfs
     executor:

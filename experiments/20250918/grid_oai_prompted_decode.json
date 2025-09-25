@@ -25,6 +25,7 @@
         "speaking_reverse_fibonacci_indices_in_each_word"
     ],
     "model_id": [
-        "claude-sonnet-4-20250514"
+        "gpt-5-chat-latest"
+
     ]
 }

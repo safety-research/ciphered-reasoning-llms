@@ -322,7 +322,7 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
 
 
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None, system_prompt_override=None, user_prompt_suffix_override=None, sampling_temperature_override=None):
+def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None, system_prompt_override=None, user_prompt_suffix_override=None, sampling_temperature_override=None, prompt_prefix_override=None, translation_extraction_tag=None):
     from openai import AsyncOpenAI
     from asyncio import Semaphore
     import asyncio
@@ -372,6 +372,10 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
         if user_prompt_suffix_override is not None:
             user_prompt_suffix = user_prompt_suffix_override
 
+        prefix = f"Do not output anything other than your conversion (do not think before outputting). {user_prompt_suffix}"
+        if prompt_prefix_override is not None:
+            prefix = prompt_prefix_override
+
         l_inputs.append(
             {
                 # note that reference text here is the encoded form.
@@ -381,7 +385,7 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
                     {"role": "system", "content": row_translation_prompt},
                     {
                         "role": "user",
-                        "content": f"Do not output anything other than your conversion (do not think before outputting). {user_prompt_suffix}Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
+                        "content": f"{prefix}Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
                     },
                 ],
             }
@@ -455,7 +459,17 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
     l_responses = asyncio.run(gather_all(l_responses))
 
     for i in range(len(l_responses)):
-        l_inputs[i]["model_translations"] = [l_responses[i]]
+        if translation_extraction_tag is not None:
+            result = re.search(f"<{translation_extraction_tag}>(.*?)</{translation_extraction_tag}>", l_responses[i], re.DOTALL)
+            if result:
+                translation = result.group(1)
+            else:
+                translation = l_responses[i]
+
+            l_inputs[i]["model_translations"] = [translation]
+            l_inputs[i]["raw_model_translations"] = [l_responses[i]]
+        else:
+            l_inputs[i]["model_translations"] = [l_responses[i]]
 
         l_inputs[i]["gt_logprobs"] = [np.nan]
         l_inputs[i]["gt_logprob_tokens"] = ["a"]

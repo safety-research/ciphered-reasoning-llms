@@ -118,7 +118,7 @@ def get_few_shot_examples(df, df_sample_group, config):
 
 
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
-def generate_fewshot_prompt(config):
+def generate_fewshot_prompt(config, validation_set_frac_override=None):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -127,7 +127,11 @@ def generate_fewshot_prompt(config):
     experiment_hash = compute_experiment_hash(config)
 
     l_suffixes = [""]
-    if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
+
+    validation_set_frac = config["experiment"]["experiment_params"].get("validation_set_frac", 0)
+    if validation_set_frac_override is not None:
+        validation_set_frac = validation_set_frac_override
+    if validation_set_frac:
         l_suffixes.append("_train")
 
     for suffix in l_suffixes:
@@ -538,7 +542,7 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
     followed_encoding_style_judge = followed_encoding_style_judge + f"\n<instruction>\n{translation_prompt}\n</instruction>"
 
     l_judge_prompts = []
-    for (_, generated_cot_row), (_, sft_row) in zip(df_generated_cot.iterrows(), df_sft.iterrows()):
+    for _, generated_cot_row in df_generated_cot.iterrows():
         sft_row = df_sft.iloc[0]
 
         sft_reference = sft_row['messages'][-1]['content']

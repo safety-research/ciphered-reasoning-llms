@@ -1,6 +1,6 @@
 {
     "encoding_scheme": [
-        "speaking_reverse_letters_in_each_word_no_math_expressions"
+        "speaking_reverse_letters_in_each_word_only_math_expressions"
     ],
     "model_id": [
         "gpt-4.1-2025-04-14"

@@ -170,19 +170,20 @@ stages:
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
 
-  - name: compute_numinamath_validation_loss
-    executor:
-      path: translation/run_reverse_translation.py
-      function_name: compute_openai_validation_loss
-      function_kwargs:
-        validation_set_name: numinamath_validation
-        override_source_validation_data_template: output/__HASH__/data/sft.parquet
+  # - name: compute_numinamath_validation_loss
+  #   executor:
+  #     path: translation/run_reverse_translation.py
+  #     function_name: compute_openai_validation_loss
+  #     function_kwargs:
+  #       validation_set_name: numinamath_validation
+  #       override_source_validation_data_template: output/__HASH__/data/sft.parquet
 
   - name: generate_math500_cot
     executor:
       path: speaking/encoded_cot_runner.py
       function_name: generate_openai_prompted_translation
-      function_kwargs: {}
+      function_kwargs:
+        sampling_temperature_override: 0.5
 
   - name: evaluate_math_accuracy
     executor:
@@ -206,6 +207,7 @@ stages:
         skip_too_long: False
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
+        sampling_temperature_override: 0.5
 
   - name: evaluate_bleu_score
     executor:

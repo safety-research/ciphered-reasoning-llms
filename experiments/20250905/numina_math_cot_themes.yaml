@@ -154,8 +154,6 @@ stages:
       path: sft/sft_runner.py
       function_name: sft_model
       function_kwargs: {}
-    task_options:
-      num_gpus: 4
 
   - name: generate_math500_cot
     executor:

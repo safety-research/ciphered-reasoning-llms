@@ -157,6 +157,7 @@ stages:
       path: speaking/encoded_cot_runner.py
       function_name: judge_cot_style_adherence
       function_kwargs: {}
+    force_overwrite: True
 
   - name: generate_math500_reverse_translation
     executor:
@@ -178,3 +179,4 @@ stages:
       path: utils/io_utils.py
       function_name: combine_translation_math_cot_dfs
       function_kwargs: {}
+    force_overwrite: True
