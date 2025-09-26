@@ -30,3 +30,6 @@ exp
 __pycache__/
 output
 outputs
+
+node_modules
+venv

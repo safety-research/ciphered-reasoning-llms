@@ -1,0 +1,153 @@
+.right-panel {
+  width: 320px;
+  background-color: #f7f7f8;
+  border-left: 1px solid #e5e5e5;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.panel-header {
+  padding: 20px;
+  border-bottom: 1px solid #e5e5e5;
+  background-color: #ffffff;
+}
+
+.panel-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #202123;
+  margin: 0;
+}
+
+.prompt-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.prompt-content h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6e6e80;
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+}
+
+.prompt-text {
+  background-color: #ffffff;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #202123;
+  white-space: pre-wrap;
+}
+
+.loading {
+  padding: 20px;
+  text-align: center;
+  color: #8e8ea0;
+  font-size: 14px;
+}
+
+.model-info {
+  padding: 20px;
+  border-top: 1px solid #e5e5e5;
+  background-color: #ffffff;
+}
+
+.model-info h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6e6e80;
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+}
+
+.model-details {
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-details .label {
+  color: #8e8ea0;
+  font-weight: 500;
+}
+
+.model-details .value {
+  color: #202123;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  word-break: break-all;
+  margin-top: 4px;
+  display: block;
+}
+
+.instruction-section {
+  padding: 20px;
+  border-top: 1px solid #e5e5e5;
+  background-color: #ffffff;
+}
+
+.instruction-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6e6e80;
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+}
+
+.instruction-section h4 {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8e8ea0;
+  margin: 12px 0 8px 0;
+}
+
+.instruction-selector {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.instruction-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d9d9e3;
+  background-color: #ffffff;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #202123;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.instruction-btn:hover {
+  background-color: #f7f7f8;
+}
+
+.instruction-btn.active {
+  background-color: #202123;
+  color: #ffffff;
+  border-color: #202123;
+}
+
+.instruction-text {
+  margin-top: 16px;
+}
+
+.instruction-text .prompt-text {
+  background-color: #f7f7f8;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #202123;
+  white-space: pre-wrap;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
