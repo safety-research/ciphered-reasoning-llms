@@ -71,7 +71,7 @@ def calculate_letter_to_word_with_dot_adherence(s):
     s = s.replace("[", "")
     s = s.replace("]", "")
 
-    return len(s) / orig_len < 0.3
+    return len(s) / max(1, orig_len) < 0.3
 
 
 def dot_between_chars(s):
@@ -83,7 +83,7 @@ def dot_between_chars(s):
 def calculate_dot_between_chars_adherence(s):
     num_dots = len([c for c in s if c == '.'])
 
-    return num_dots / len(s) >= 0.3
+    return num_dots / max(1, len(s)) >= 0.3
 
 
 def space_between_chars(s):

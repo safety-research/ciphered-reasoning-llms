@@ -67,7 +67,7 @@ fi
 # /scratch 127.0.0.1(rw,sync,no_subtree_check,no_root_squash) # this is self
 # sudo apt-get install nfs-kernel-server nfs-common -y
 # sudo exportfs -ra
-# sudo mount -t nfs -o vers=3 10.15.14.41:/scratch ~/sky_workdir
+# sudo mount -t nfs -o vers=3 10.15.16.1:/scratch ~/sky_workdir
 
 # manually run apt-get install w/sudo on both machines
 # sudo chown -R ubuntu:ubuntu ~/sky_workdir
@@ -98,7 +98,7 @@ fi
 # source ~/sky_workdir/anthropic/bin/activate
 # ray stop --force
 # cd ~/sky_workdir/encoding-schemes
-# RAY_kill_child_processes_on_worker_exit_with_raylet_subreaper=true ray start --address='10.15.14.41:9265' 
+# RAY_kill_child_processes_on_worker_exit_with_raylet_subreaper=true ray start --address='10.15.16.1:9265' 
 
 
 # RAY_kill_child_processes_on_worker_exit_with_raylet_subreaper=true ray start --address='10.15.14.41:9265' --resources='{"long_running_job": 1}'
