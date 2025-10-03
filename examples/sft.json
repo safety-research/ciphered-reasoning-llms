@@ -1,0 +1,8 @@
+{
+    "encoding_scheme": [
+        "speaking_base64_cipher"
+    ],
+    "model_id": [
+        "Qwen/Qwen2.5-7B-Instruct"
+    ]
+}

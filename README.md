@@ -1,86 +1,38 @@
-# safety-examples
+# All Code, No Thought: Language Models Struggle to Reason in Ciphered Language
 
-This repository uses `safety-tooling` as a submodule and showcases how to use the LLM api, experiment utils, prompt utils and environment setup. The repo is set up to have core code in `examples` and lightweight scripts that call that code in `experiments/<exp_name>`. We recommend forking this repository to get started with your project since it has pre-commit hooks and the submodule setup already. Even if you think you won’t need any of this tooling, we suggest forking anyway since it will be easy for you to add your own cool tooling to `safety-tooling` in the future if you would like.
+This repo contains the code used to run all experiments for the [paper](https://cipheredreasoning.app/).
 
-## Set-up
+## Setup
 
-1. First pull the submodules:
+To run the example scripts for fine-tuning & few-shot prompting models to reason in ciphered language and translate ciphered language, you will need at least an 8xA100 machine. We use [Ray](https://www.ray.io/) to orchestrate experiments. Jobs are defined as YAML files containing experiment parameters and a set of stages, and JSON files containing combinations of parameters to grid over.
 
-```bash
-git submodule update --init --recursive
+You will need to run the script in `orchestration/base_setup.sh` to install all dependencies and create a virtual environment. Please ensure the following:
+- The script assumes you have root access on an Ubuntu machine; you may need to modify it if you have a different setup.
+- The script assumes you have cloned the `jeff-encoding-schemes` branch of [verl](git@github.com:safety-research/verl.git) to `~/sky_workdir/verl`. Please modify it accordingly if your path is different. We have added additional training features & infrastructure optimization to the SFT training script in verl for our use here.
+- We also use Supabase for tracking experiment metadata, so you should set `SUPABASE_CONNECTION_URL` appropriately.
+- In `env/anthropic.py` and `env/openai.py`, you should create files with `set_anthropic_key` and `set_openai_key` Python functions that set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` environment variables appropriately.
+
+Some Jupyter notebooks assume that this repo is cloned into `/home/ubuntu/sky_workdir/ciphered-reasoning-llms`. You may need to adjust `sys.path.append` calls appropriately to reflect your path. Scripts have only been tested on H100 machines and therefore CUDA/vllm/PyTorch versions may require adjustment for your setup.
+
+## Running experiments
+
+Running these scripts will execute the entire workflow, from datagen to fine-tuning to inference to evaluation. Each experiment has a hash generated from its parameters. All model weights, generated outputs, and datasets will be generated into this folder. The hash will be printed to stdout.
+
+```
+# Assuming you are in the venv:
+
+# Fine-tune Qwen2.5-7B-Instruct to reason in base64
+python orchestration/grid_results.py examples/sft.json --eval-script examples/sft.yaml
+
+# Few-shot prompt Sonnet 4 to reason in base64
+python orchestration/grid_results.py examples/fewshot.json --eval-script examples/fewshot.yaml
+
+# Generally prompted zero shot translation
+python orchestration/grid_results.py examples/generally_prompted_translation.json --eval-script examples/generally_prompted_translation.yaml
 ```
 
-2. Follow the instructions in safety-tooling/README.md to set up the environment. Ensure to make a `.env` file with your API keys. This `.env` file can be in the root of the repo or in the safety-tooling submodule (safetytooling.utils.setup_environment() will check both places).
+For some few-shot results, we used additional instructions in the user prompt or system prompt to improve adherence. You may grep for JSON files containing the string `user_prompt_suffix_override` or `system_prompt_override` to find these prompts.
 
-3. Install the requirements:
+## Pretraining prevalence
 
-```bash
-uv pip install -e safety-tooling
-uv pip install -r safety-tooling/requirements_dev.txt
-uv pip install -r requirements.txt # once you have added any other dependencies
-```
-
-
-## Run tests
-To run tests, cd into the safety-tooling directory and run:
-```bash
-python -m pytest -n 6
-```
-
-## Add the submodule to your pythonpath
-The submodule must be in your pythonpath for you to be able to use it. There are a few ways to do this:
-
-1. Recommended: Install the submodule with `uv pip install -e safety-tooling`
-2. Add the submodule to your pythonpath in the `<main_module>/__init__.py` of your main module (e.g. see `examples/__init__.py`). You then have to call your code like `python -m <main_module>.<other_module>`.
-3. Add the submodule to your pythonpath manually. E.g. in a notebook, you can use this function at the top of your notebooks:
-    ```python
-    import os
-    import pathlib
-    import sys
-
-
-    def put_submodule_in_python_path(submodule_name: str):
-        repo_root = pathlib.Path(os.getcwd())
-        submodule_path = repo_root / submodule_name
-        if submodule_path.exists():
-            sys.path.append(str(submodule_path))
-
-    put_submodule_in_python_path("safety-tooling")
-    ```
-
-## Examples
-
-The repo has 4 examples:
-
-- Getting responses from an LLM to harmful direct requests and classifying them with another LLM. This involves chaining two scripts together.
-    - `experiments/examples/241223_running_examples/run_get_responses.sh`
-    - Stage 1: Gets LLM responses with `examples.inference.get_responses`
-        - This adds a new column to the input jsonl (`experiments/examples/241223_running_examples/direct_request.jsonl`) and saves it as a new output file. This workflow is nice because you get to keep all metadata along with the model output.
-    - Stage 2: Gets the classifier output using the HarmBench grader with `examples.inference.run_classifier`
-        - This also adds another column for the classifier decision and outputs a new jsonl.
-        - Once finished you can now analyse the results in a notebook quickly with `pandas`.
-- Best of N jailbreaking
-    - `experiments/examples/241223_running_examples/run_bon_jailbreaking.sh`
-    - Repeated sampling of new augmented harmful queries until one jailbreaks the model.
-- PAIR attack
-    - `experiments/examples/241223_running_examples/run_pair.sh`
-    - Use an attacker LLM to adapt and rewrite harmful prompts until it jailbreaks the model.
-- Multi choice benchmarks
-    - `experiments/examples/241223_running_examples/run_capability_evals.sh`
-    - Run benchmarks like MMLU and find the accuracy.
-
-## Citation
-
-If you use this repo in your work, please cite it as follows:
-
-```bibtex
-@misc{safety_examples_2025,
-  author       = {John Hughes and safety-research},
-  title        = {safety-research/safety-examples: v1.0.0},
-  year         = {2025},
-  publisher    = {Zenodo},
-  version      = {v1.0.0},
-  doi          = {10.5281/zenodo.15363605},
-  url          = {https://doi.org/10.5281/zenodo.15363605}
-}
-```
+We compute pretraining prevalence using the notebook in `experiments/20250811/compute_pretraining_prevalence.ipynb`. 

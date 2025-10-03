@@ -463,7 +463,6 @@ def together_retrieve_endpoint_information(endpointId):
     return response.json()
 
 
-# TODO(sguo35): add validation set support, LR multiplier support
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
 def openai_sft_model(
     config,
@@ -511,7 +510,6 @@ def openai_sft_model(
 
     # 3) Upload file for fine-tuning
     print("[upload] Uploading training file to OpenAI…")
-    # TODO(sguo35)
     with open(output_json_path, "rb") as fh:
         uploaded = client.files.create(file=fh, purpose="fine-tune")
     training_file_id = uploaded.id

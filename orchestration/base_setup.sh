@@ -36,7 +36,7 @@ uv pip install pandas 'ray[default]' numpy liger_kernel --no-build-isolation
 # cd DeepGEMM && ./install.sh
 
 cd ~/sky_workdir/verl && uv pip install -e .
-cd ~/sky_workdir/cot-decomp/safety-tooling && uv pip install -e .
+#cd ~/sky_workdir/cot-decomp/safety-tooling && uv pip install -e .
 
 uv pip install transformers==4.55.0
 uv pip install vllm==0.10.1 flashinfer-python

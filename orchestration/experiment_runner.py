@@ -188,10 +188,7 @@ def execute_pipeline(config):
 
         with open(os.path.join(checkpoints_dir, stage["name"]), "w") as fp:
             fp.write("Done.")
-
-
-# TODO(sguo35): add checkpointing logic so we skip completed steps + overwrite functionality
-
+            
 
 @ray.remote
 def execute_pipeline_remote(config):
