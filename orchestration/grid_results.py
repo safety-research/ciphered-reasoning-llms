@@ -63,7 +63,9 @@ def run_eval_orchestrator_remote(
             # Leave other types unchanged
             return obj
 
-    d_transformed_params = {f"${{{param_name}}}": param_value for param_name, param_value in params.items()}
+    d_transformed_params = {
+        f"${{{param_name}}}": param_value for param_name, param_value in params.items()
+    }
 
     def transform_func(s):
         for key in d_transformed_params:
@@ -121,7 +123,9 @@ def generate_param_combinations(
         df_results = pd.DataFrame(result)
         if len(l_sql_filters) > 0:
             l_sql_filters = [f"({filter})" for filter in l_sql_filters]
-            df_results = duckdb.query(f"SELECT * FROM df_results WHERE {'AND'.join(l_sql_filters)}").to_df()
+            df_results = duckdb.query(
+                f"SELECT * FROM df_results WHERE {'AND'.join(l_sql_filters)}"
+            ).to_df()
         df_results.to_csv("df_results.csv", index=False)
 
         return df_results.to_dict(orient="records")
@@ -130,7 +134,9 @@ def generate_param_combinations(
     for group in zip_groups:
         group_lengths = [len(params[param]) for param in group]
         if len(set(group_lengths)) != 1:
-            raise ValueError(f"All parameters in group {group} must have the same length")
+            raise ValueError(
+                f"All parameters in group {group} must have the same length"
+            )
 
     # Create combinations for each zip group
     zipped_groups = []
@@ -173,7 +179,9 @@ def generate_param_combinations(
     df_results = pd.DataFrame(result)
     if len(l_sql_filters) > 0:
         l_sql_filters = [f"({filter})" for filter in l_sql_filters]
-        df_results = duckdb.query(f"SELECT * FROM df_results WHERE {'AND'.join(l_sql_filters)}").to_df()
+        df_results = duckdb.query(
+            f"SELECT * FROM df_results WHERE {'AND'.join(l_sql_filters)}"
+        ).to_df()
     df_results.to_csv("df_results.csv", index=False)
 
     return df_results.to_dict(orient="records")
@@ -202,8 +210,12 @@ def parse_zip_groups(zip_arg: Optional[str]) -> Optional[List[List[str]]]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run grid search with eval_orchestrator.py")
-    parser.add_argument("json_path", help="Path to JSON file containing parameter lists")
+    parser = argparse.ArgumentParser(
+        description="Run grid search with eval_orchestrator.py"
+    )
+    parser.add_argument(
+        "json_path", help="Path to JSON file containing parameter lists"
+    )
     parser.add_argument(
         "--zip",
         help="Parameters to zip together, separated by |. Each group is space-separated. "
@@ -211,7 +223,9 @@ def main():
     )
     parser.add_argument("--eval-script", help="Path to experiment yaml", required=True)
     parser.add_argument("--dry-run", action="store_true", help="Dry run the script")
-    parser.add_argument("--dump-ray-logs", action="store_true", help="dump all ray task logs")
+    parser.add_argument(
+        "--dump-ray-logs", action="store_true", help="dump all ray task logs"
+    )
     args = parser.parse_args()
 
     if args.dry_run:
@@ -244,7 +258,9 @@ def main():
         for i, combo in enumerate(combinations, 1):
             print(f"\nScheduling combination {i}/{len(combinations)}")
             print(f"Parameters: {combo}")
-            future = run_eval_orchestrator_remote.remote(combo, args.eval_script, args.dry_run)
+            future = run_eval_orchestrator_remote.remote(
+                combo, args.eval_script, args.dry_run
+            )
             futures.append((combo, future))
 
         # Collect results
@@ -257,6 +273,7 @@ def main():
     finally:
         # Shutdown Ray
         import time
+
         # wait for all worker results to propagate to the driver so the gui looks nice
         time.sleep(3)
 

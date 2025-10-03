@@ -17,7 +17,6 @@ class GPUInitScheduler:
         for i in range(8):
             self.locked[i] = False
 
-
     async def acquire_lock(self, gpu_id):
         while self.locked[gpu_id]:
             await asyncio.sleep(1)
@@ -26,8 +25,6 @@ class GPUInitScheduler:
 
     async def release_lock(self, gpu_id):
         self.locked[gpu_id] = False
-                
-                
 
 
 @ray.remote(num_gpus=0.5)
@@ -39,7 +36,7 @@ class VllmActor:
         gpu_memory_utilization: float = 0.45,
         max_model_len: Optional[int] = 8192,
         dtype: str = "auto",
-        gpu_init_scheduler = None,
+        gpu_init_scheduler=None,
         **kwargs
     ):
         """
@@ -64,7 +61,7 @@ class VllmActor:
         from vllm.utils import FlexibleArgumentParser, random_uuid, set_ulimit
         from vllm.version import __version__ as VLLM_VERSION
 
-        os.environ['VLLM_USE_V1'] = '1'
+        os.environ["VLLM_USE_V1"] = "1"
 
         self.model_path = model_path
         self.engine = None
@@ -105,17 +102,16 @@ class VllmActor:
             Generated response text
         """
         from vllm.utils import random_uuid
+
         # Use tokenizer's apply_chat_template to format the conversation
         prompt = self.tokenizer.apply_chat_template(
-            conversation,
-            tokenize=False,
-            add_generation_prompt=True
+            conversation, tokenize=False, add_generation_prompt=True
         )
 
         # Set up sampling parameters
         sampling_params = SamplingParams(
-            temperature=extra_params.get('temperature', 0.5),
-            max_tokens=extra_params.get('max_tokens', 4096),
+            temperature=extra_params.get("temperature", 0.5),
+            max_tokens=extra_params.get("max_tokens", 4096),
         )
 
         # Generate a unique request ID
@@ -141,7 +137,7 @@ class VllmActor:
         """
         Shutdown the engine and cleanup resources.
         """
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+        sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
         from utils.vllm import kill_vllm_process
 

@@ -3,7 +3,9 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from data.designing_data_intensive_applications import get_designing_data_intensive_applications
+from data.designing_data_intensive_applications import (
+    get_designing_data_intensive_applications,
+)
 from data.prm800k import get_prm800k_cot, get_prm800k_raw
 from data.lmsys_chat_1m import get_lmsys_chat_1m_1_turn_english
 from data.numina_math_cot import get_numina_math_cot_raw

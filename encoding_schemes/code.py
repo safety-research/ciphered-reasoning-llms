@@ -1,6 +1,7 @@
 import ast
 import javalang
 
+
 def java_code_percentage(text: str) -> float:
     """
     Calculate the percentage of characters in the input text
@@ -34,7 +35,7 @@ def python_code_percentage(text: str) -> float:
     """
     Calculate the percentage of characters in the input text
     that form valid Python code snippets.
-    
+
     Args:
         text (str): The input string.
     Returns:

@@ -35,7 +35,7 @@ import asyncio
 
 
 client = AsyncOpenAI(
-    api_key=os.environ['ANTHROPIC_API_KEY'],
+    api_key=os.environ["ANTHROPIC_API_KEY"],
     base_url="https://api.anthropic.com/v1/",
 )
 
@@ -48,12 +48,9 @@ async def do_translation(s, prompt):
             async with rate_limit:
                 resp = await client.chat.completions.create(
                     model="claude-sonnet-4-20250514",
-                    messages=[{
-                        "role": "user",
-                        "content": prompt + "\n" + s
-                    }],
+                    messages=[{"role": "user", "content": prompt + "\n" + s}],
                     temperature=1.0,
-                    max_tokens=30000
+                    max_tokens=30000,
                 )
 
                 ret = resp.choices[0].message.content

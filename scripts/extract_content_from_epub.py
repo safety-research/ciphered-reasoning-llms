@@ -100,7 +100,9 @@ INTRO_RE = re.compile("|".join(INTRO_ALSO), re.I)
 END_RE = re.compile("|".join(END_PATTERNS), re.I)
 SKIP_RE = re.compile("|".join(SKIP_SECTION_PATTERNS), re.I)
 
-CITE_BRACKET_RE = re.compile(r"\s?\[(\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+)*)\]")  # [12], [1-3], [2, 5]
+CITE_BRACKET_RE = re.compile(
+    r"\s?\[(\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+)*)\]"
+)  # [12], [1-3], [2, 5]
 
 
 def simplify_text(s: str) -> str:
@@ -201,9 +203,15 @@ def main():
     ap.add_argument("--markdown", action="store_true")
     ap.add_argument("--min-chars", type=int, default=400)
     ap.add_argument(
-        "--include-intro", action="store_true", help="Also allow 'Introduction'/'Prologue' to start main content"
+        "--include-intro",
+        action="store_true",
+        help="Also allow 'Introduction'/'Prologue' to start main content",
     )
-    ap.add_argument("--strip-citations", action="store_true", help="Remove bracketed numeric citations like [12]")
+    ap.add_argument(
+        "--strip-citations",
+        action="store_true",
+        help="Remove bracketed numeric citations like [12]",
+    )
     args = ap.parse_args()
 
     in_path = Path(args.epub_path)
@@ -264,7 +272,9 @@ def main():
                 node = parent.contents[0] if parent and parent.contents else None
                 # If heading isn't a direct child, just drop everything before its position in the whole doc
                 pos = None
-                for i, el in enumerate(orig.body.descendants if orig.body else orig.descendants):
+                for i, el in enumerate(
+                    orig.body.descendants if orig.body else orig.descendants
+                ):
                     if el is start_h:
                         pos = i
                         break
@@ -317,7 +327,10 @@ def main():
     combined = "\n\n".join(outputs).strip()
 
     if not combined:
-        print("No main content extracted. Try --include-intro or lower --min-chars.", file=sys.stderr)
+        print(
+            "No main content extracted. Try --include-intro or lower --min-chars.",
+            file=sys.stderr,
+        )
         sys.exit(3)
 
     out_path = Path(args.output)

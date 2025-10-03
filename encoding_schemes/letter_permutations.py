@@ -4,6 +4,7 @@ import string
 import os
 import re
 
+
 def is_latex(text: str) -> bool:
     """
     Detects whether the given string contains LaTeX content.
@@ -16,13 +17,13 @@ def is_latex(text: str) -> bool:
     """
     # Common LaTeX patterns
     latex_patterns = [
-        r"\$.*?\$",            # Inline math: $...$
-        r"\$\$.*?\$\$",        # Display math: $$...$$
-        r"\\\[.*?\\\]",        # Display math: \[...\]
-        r"\\\(.*?\\\)",        # Inline math: \(...\)
-        r"\\begin\{.*?\}",     # LaTeX environments: \begin{...}
-        r"\\end\{.*?\}",       # LaTeX environments: \end{...}
-        r"\\[a-zA-Z]+",        # LaTeX commands: \frac, \alpha, \sum, etc.
+        r"\$.*?\$",  # Inline math: $...$
+        r"\$\$.*?\$\$",  # Display math: $$...$$
+        r"\\\[.*?\\\]",  # Display math: \[...\]
+        r"\\\(.*?\\\)",  # Inline math: \(...\)
+        r"\\begin\{.*?\}",  # LaTeX environments: \begin{...}
+        r"\\end\{.*?\}",  # LaTeX environments: \end{...}
+        r"\\[a-zA-Z]+",  # LaTeX commands: \frac, \alpha, \sum, etc.
     ]
 
     combined_pattern = re.compile("|".join(latex_patterns), re.DOTALL)
@@ -42,7 +43,7 @@ def reverse_letters_in_each_word_no_math_expressions_cipher(s):
     for i, word in enumerate(l_words):
         if is_latex(word):
             continue
-        
+
         has_math_expr = False
         for math_expr_char in ["+", "-", "/", "*", "<", ">", "=", "^", "f(x)", "\\sum"]:
             if math_expr_char in word:
@@ -66,7 +67,7 @@ def reverse_letters_in_each_word_math_expressions_only_cipher(s):
 
         if is_latex(word):
             is_math_expr = True
-        
+
         has_math_expr = False
         for math_expr_char in ["+", "-", "/", "*", "<", ">", "=", "^", "f(x)", "\\sum"]:
             if math_expr_char in word:
@@ -80,14 +81,24 @@ def reverse_letters_in_each_word_math_expressions_only_cipher(s):
 
         if not is_math_expr:
             continue
-            
+
         l_words[i] = l_words[i][::-1]
 
     return " ".join(l_words)
 
 
 def get_English_dictionary():
-    with open(os.path.join(os.path.dirname(__file__), "..", "data", "raw", "english_dictionary", "words_dictionary.json"), "r") as fp:
+    with open(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "data",
+            "raw",
+            "english_dictionary",
+            "words_dictionary.json",
+        ),
+        "r",
+    ) as fp:
         return set(json.load(fp).keys())
 
 
@@ -118,7 +129,7 @@ def calculate_letter_permutation_adherence(s, inverse_fn):
             n_valid_words += 1
 
     return n_valid_words / max(n_non_latex_words, 1) >= 0.7
-        
+
 
 def random_permute_letters_in_each_word(s):
     s = s.split(" ")

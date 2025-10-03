@@ -22,7 +22,10 @@ import csv
 try:
     import tiktoken
 except ImportError:
-    print("Error: tiktoken is not installed. Install with: pip install tiktoken", file=sys.stderr)
+    print(
+        "Error: tiktoken is not installed. Install with: pip install tiktoken",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -69,16 +72,30 @@ def format_number(n: int) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Count tokens between ## markdown headers")
+    parser = argparse.ArgumentParser(
+        description="Count tokens between ## markdown headers"
+    )
     parser.add_argument("input_file", help="Path to input text file")
     parser.add_argument(
-        "--encoding", default="cl100k_base", help="Tiktoken encoding to use (default: cl100k_base for GPT-3.5/GPT-4)"
+        "--encoding",
+        default="cl100k_base",
+        help="Tiktoken encoding to use (default: cl100k_base for GPT-3.5/GPT-4)",
     )
     parser.add_argument("--csv", help="Output results to CSV file")
-    parser.add_argument("--verbose", action="store_true", help="Show content preview for each section")
-    parser.add_argument("--min-tokens", type=int, default=0, help="Only show sections with at least this many tokens")
     parser.add_argument(
-        "--max-tokens", type=int, default=float("inf"), help="Only show sections with at most this many tokens"
+        "--verbose", action="store_true", help="Show content preview for each section"
+    )
+    parser.add_argument(
+        "--min-tokens",
+        type=int,
+        default=0,
+        help="Only show sections with at least this many tokens",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=float("inf"),
+        help="Only show sections with at most this many tokens",
     )
 
     args = parser.parse_args()
@@ -120,7 +137,14 @@ def main():
         if token_count < args.min_tokens or token_count > args.max_tokens:
             continue
 
-        results.append({"header": header, "tokens": token_count, "characters": len(content), "content": content})
+        results.append(
+            {
+                "header": header,
+                "tokens": token_count,
+                "characters": len(content),
+                "content": content,
+            }
+        )
 
     # Sort by token count (descending)
     results.sort(key=lambda x: x["tokens"], reverse=True)
@@ -152,25 +176,35 @@ def main():
         print(f"Total sections: {len(results)}")
         print(f"Total tokens: {format_number(total_tokens)}")
         print(f"Average tokens per section: {format_number(int(avg_tokens))}")
-        print(f"Median tokens per section: {format_number(sorted(token_counts)[len(token_counts)//2])}")
+        print(
+            f"Median tokens per section: {format_number(sorted(token_counts)[len(token_counts)//2])}"
+        )
         print(f"Smallest section: {format_number(min(token_counts))} tokens")
         print(f"Largest section: {format_number(max(token_counts))} tokens")
 
         # Show top 5 largest sections
         print("\nTop 5 largest sections:")
         for i, result in enumerate(results[:5], 1):
-            print(f"  {i}. {result['header']}: {format_number(result['tokens'])} tokens")
+            print(
+                f"  {i}. {result['header']}: {format_number(result['tokens'])} tokens"
+            )
 
     # Output to CSV if requested
     if args.csv:
         csv_path = Path(args.csv)
         try:
             with csv_path.open("w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=["header", "tokens", "characters"])
+                writer = csv.DictWriter(
+                    f, fieldnames=["header", "tokens", "characters"]
+                )
                 writer.writeheader()
                 for result in results:
                     writer.writerow(
-                        {"header": result["header"], "tokens": result["tokens"], "characters": result["characters"]}
+                        {
+                            "header": result["header"],
+                            "tokens": result["tokens"],
+                            "characters": result["characters"],
+                        }
                     )
             print(f"\nCSV report saved to: {csv_path}")
         except Exception as e:

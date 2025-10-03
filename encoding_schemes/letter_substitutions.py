@@ -81,7 +81,7 @@ def dot_between_chars(s):
 
 
 def calculate_dot_between_chars_adherence(s):
-    num_dots = len([c for c in s if c == '.'])
+    num_dots = len([c for c in s if c == "."])
 
     return num_dots / max(1, len(s)) >= 0.3
 
@@ -93,7 +93,7 @@ def space_between_chars(s):
 
 
 def calculate_space_between_chars_adherence(s):
-    num_spaces = len([c for c in s if c == ' '])
+    num_spaces = len([c for c in s if c == " "])
 
     return num_spaces / len(s) >= 0.3
 

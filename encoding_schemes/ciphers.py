@@ -4,7 +4,7 @@ import re
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from encoding_schemes.letter_permutations import is_latex
 
@@ -12,10 +12,10 @@ from encoding_schemes.letter_permutations import is_latex
 def base64_valid_percentage(text: str) -> float:
     """
     Calculates the percentage of characters in the given text that are part of valid Base64 sequences.
-    
+
     Args:
         text (str): The input string to analyze.
-    
+
     Returns:
         float: Percentage of characters in valid Base64 sequences.
     """
@@ -23,7 +23,9 @@ def base64_valid_percentage(text: str) -> float:
         return 0.0
 
     # Base64 pattern: groups of 4 valid chars, possibly ending with '=' or '=='
-    base64_pattern = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
+    base64_pattern = re.compile(
+        r"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?"
+    )
 
     total_length = len(text)
     valid_chars = 0
@@ -42,8 +44,9 @@ def base64_valid_percentage(text: str) -> float:
     return valid_chars / total_length
 
 
-_BASE64_ALPHABET = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
-
+_BASE64_ALPHABET = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+)
 
 
 def rot13_cipher(s):
@@ -59,7 +62,7 @@ def rot13_no_math_expressions_cipher(s):
     for i, word in enumerate(l_words):
         if is_latex(word):
             continue
-        
+
         has_math_expr = False
         for math_expr_char in ["+", "-", "/", "*", "<", ">", "=", "^", "f(x)", "\\sum"]:
             if math_expr_char in word:
@@ -103,7 +106,7 @@ def inverse_base64_cipher(s):
     n = len(filtered)
     while i < n:
         # Take up to 4 chars; pad to length 4
-        chunk = filtered[i:i+4]
+        chunk = filtered[i : i + 4]
         if not chunk:
             break
         padded = _pad_to_quad(chunk)
@@ -123,6 +126,7 @@ def _pad_to_quad(t: str) -> str:
     """Pad with '=' so length is a multiple of 4 (without stripping existing '=')."""
     need = (-len(t)) % 4
     return t + ("=" * need if need else "")
+
 
 def _decode_with_padding(t: str):
     """Try decoding an entire cleaned string with padding; return bytes or None."""

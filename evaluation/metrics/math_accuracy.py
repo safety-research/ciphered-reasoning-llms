@@ -4,7 +4,11 @@ import pandas as pd
 import ray
 import re
 
-from verl.utils.reward_score.math import compute_score, last_boxed_only_string, remove_boxed
+from verl.utils.reward_score.math import (
+    compute_score,
+    last_boxed_only_string,
+    remove_boxed,
+)
 
 
 def extract_answer(model_response: str) -> str:
@@ -21,15 +25,19 @@ def extract_answer(model_response: str) -> str:
 
 import signal
 
+
 class timeout:
-    def __init__(self, seconds=1, error_message='Timeout'):
+    def __init__(self, seconds=1, error_message="Timeout"):
         self.seconds = seconds
         self.error_message = error_message
+
     def handle_timeout(self, signum, frame):
         raise TimeoutError(self.error_message)
+
     def __enter__(self):
         signal.signal(signal.SIGALRM, self.handle_timeout)
         signal.alarm(self.seconds)
+
     def __exit__(self, type, value, traceback):
         signal.alarm(0)
 
@@ -52,7 +60,7 @@ def evaluate_math_accuracy(config, input_path_override=None, output_path_overrid
     for i, row in df.iterrows():
         l_sample_correct = []
 
-        for n in range(len(row['model_cot'])):
+        for n in range(len(row["model_cot"])):
             try:
                 with timeout():
                     extracted_model_response = extract_answer(row["model_cot"][n])
@@ -71,7 +79,9 @@ def evaluate_math_accuracy(config, input_path_override=None, output_path_overrid
 
             try:
                 with timeout():
-                    l_sample_correct.append(compute_score(extracted_model_response, row["answer"]))
+                    l_sample_correct.append(
+                        compute_score(extracted_model_response, row["answer"])
+                    )
             except Exception as e:
                 print(e)
                 l_sample_correct.append(0.0)

@@ -8,7 +8,9 @@ import ray
 
 
 @ray.remote(num_cpus=1)
-def evaluate_bleu_score(config, translation_path_override=None, output_path_override=None):
+def evaluate_bleu_score(
+    config, translation_path_override=None, output_path_override=None
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
@@ -16,16 +18,22 @@ def evaluate_bleu_score(config, translation_path_override=None, output_path_over
 
     experiment_hash = compute_experiment_hash(config)
 
-    translation_path = os.path.join("output", experiment_hash, "data", "prompted_translation.parquet")
+    translation_path = os.path.join(
+        "output", experiment_hash, "data", "prompted_translation.parquet"
+    )
     if translation_path_override is not None:
-        translation_path = translation_path_override.replace("__HASH__", experiment_hash)
+        translation_path = translation_path_override.replace(
+            "__HASH__", experiment_hash
+        )
     df = pd.read_parquet(translation_path)
 
     l_bleu_scores = []
     for i, row in df.iterrows():
         l_sample_bleus = []
 
-        for n in range(config["experiment"]["experiment_params"]["sampling_params"]["n"]):
+        for n in range(
+            config["experiment"]["experiment_params"]["sampling_params"]["n"]
+        ):
             l_sample_bleus.append(
                 bleu.compute(
                     predictions=[row["model_translations"][n]],

@@ -3,6 +3,7 @@ import base64
 import io
 import zlib
 
+
 def percent_gzip_bytestream(data: bytes) -> float:
     """
     Return the percentage (0..100) of bytes in `data` that form a valid gzip bytestream.
@@ -46,7 +47,6 @@ def percent_gzip_bytestream(data: bytes) -> float:
     return covered_count / n_bytes
 
 
-
 def bytes_to_unicode():
     # Printable bytes that we keep as-is:
     bs = list(range(33, 127)) + list(range(161, 173)) + list(range(174, 256))
@@ -85,7 +85,10 @@ def gzip_to_base64_encoded(s):
     return base64.b64encode(gz_bytes).decode("ascii")
 
 
-_BASE64_ALPHABET = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+_BASE64_ALPHABET = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+)
+
 
 def _b64_to_bytes_best_effort(s: str) -> bytes:
     """Salvage as many bytes as possible from a noisy Base64 string."""
@@ -102,7 +105,7 @@ def _b64_to_bytes_best_effort(s: str) -> bytes:
     i = 0
     n = len(filtered)
     while i < n:
-        chunk = filtered[i:i+4]
+        chunk = filtered[i : i + 4]
         if not chunk:
             break
         padded = _pad4(chunk)
@@ -113,9 +116,11 @@ def _b64_to_bytes_best_effort(s: str) -> bytes:
             i += 1  # skip one char and try again
     return bytes(out)
 
+
 def _pad4(t: str) -> str:
     need = (-len(t)) % 4
     return t + ("=" * need if need else "")
+
 
 def _try_b64_decode(t: str):
     try:
@@ -166,10 +171,12 @@ def _gunzip_best_effort(data: bytes) -> bytes:
             buf = tail
         except Exception:
             # Skip past this byte and keep looking
-            buf = buf[start + 1:]
+            buf = buf[start + 1 :]
             if not buf:
                 break
     return bytes(out)
+
+
 # ===========================================================================
 
 

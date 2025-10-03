@@ -24,14 +24,21 @@ def count_tokens_from_messages(messages):
 
 
 @ray.remote(num_cpus=1)
-def generate_ground_truth_translation(config, dataset_override=None, validation_set_frac_override=None, write_as_train_file=False):
+def generate_ground_truth_translation(
+    config,
+    dataset_override=None,
+    validation_set_frac_override=None,
+    write_as_train_file=False,
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from encoding_schemes import get_encoding_scheme, is_async_encoding_scheme
     from data import get_dataset
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
-    fn_encoding_scheme = get_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"], config)
+    fn_encoding_scheme = get_encoding_scheme(
+        config["experiment"]["experiment_params"]["encoding_scheme"], config
+    )
 
     dataset_name = config["experiment"]["experiment_params"]["dataset"]
     if dataset_override:
@@ -39,7 +46,9 @@ def generate_ground_truth_translation(config, dataset_override=None, validation_
     dataset = get_dataset(dataset_name)
 
     experiment_hash = compute_experiment_hash(config)
-    target_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    target_path = os.path.join(
+        "output", experiment_hash, "data", "ground_truth_translation.parquet"
+    )
 
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
@@ -49,7 +58,9 @@ def generate_ground_truth_translation(config, dataset_override=None, validation_
     ref_translation_cot = [None for _ in range(len(dataset))]
 
     translated_solution = [fn_encoding_scheme(r["solution"]) for r in dataset]
-    if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
+    if is_async_encoding_scheme(
+        config["experiment"]["experiment_params"]["encoding_scheme"]
+    ):
         translated_solution = asyncio.run(gather_all(translated_solution))
 
         ref_translation_cot = [t[1] for t in translated_solution]
@@ -60,25 +71,30 @@ def generate_ground_truth_translation(config, dataset_override=None, validation_
             "reference_problem": [r["problem"] for r in dataset],
             "reference_solution": [r["solution"] for r in dataset],
             "translated_solution": [
-                sol + f"\n\\boxed{{{r['answer']}}}" for sol, r in zip(translated_solution, dataset)
+                sol + f"\n\\boxed{{{r['answer']}}}"
+                for sol, r in zip(translated_solution, dataset)
             ],
             "raw_translated_cot": translated_solution,
             "answer": [r["answer"] for r in dataset],
-            "ref_translation_cot": ref_translation_cot
+            "ref_translation_cot": ref_translation_cot,
         }
     )
 
-    validation_set_frac = config["experiment"]["experiment_params"].get("validation_set_frac", 0)
+    validation_set_frac = config["experiment"]["experiment_params"].get(
+        "validation_set_frac", 0
+    )
     if validation_set_frac_override is not None:
         validation_set_frac = validation_set_frac_override
 
-    train_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation_train.parquet")
+    train_path = os.path.join(
+        "output", experiment_hash, "data", "ground_truth_translation_train.parquet"
+    )
     if validation_set_frac:
         train_set_frac = 1.0 - validation_set_frac
 
         df_train = df.sample(frac=train_set_frac, random_state=42)
         df_valid = df[~df.index.isin(df_train.index)]
-        
+
         df_train.to_parquet(train_path)
         df_valid.to_parquet(target_path)
     elif write_as_train_file:
@@ -88,17 +104,21 @@ def generate_ground_truth_translation(config, dataset_override=None, validation_
 
 
 def get_few_shot_examples(df, df_sample_group, config):
-    n_few_shot_examples = config["experiment"]["experiment_params"].get("n_few_shot_examples", 0)
+    n_few_shot_examples = config["experiment"]["experiment_params"].get(
+        "n_few_shot_examples", 0
+    )
 
     l_few_shot_examples = []
 
     for i, row in df.iterrows():
-        df_sample = df_sample_group[df_sample_group["translated_solution"] != row["translated_solution"]]
+        df_sample = df_sample_group[
+            df_sample_group["translated_solution"] != row["translated_solution"]
+        ]
 
         if len(df_sample) == 0:
             print("!!!!! no few shot examples found !!!!!")
-            print(df_sample_group['translated_solution'].head())
-            print(row['translated_solution'])
+            print(df_sample_group["translated_solution"].head())
+            print(row["translated_solution"])
 
         df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
 
@@ -128,19 +148,28 @@ def generate_fewshot_prompt(config, validation_set_frac_override=None):
 
     l_suffixes = [""]
 
-    validation_set_frac = config["experiment"]["experiment_params"].get("validation_set_frac", 0)
+    validation_set_frac = config["experiment"]["experiment_params"].get(
+        "validation_set_frac", 0
+    )
     if validation_set_frac_override is not None:
         validation_set_frac = validation_set_frac_override
     if validation_set_frac:
         l_suffixes.append("_train")
 
     for suffix in l_suffixes:
-        target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
+        target_path = os.path.join(
+            "output",
+            experiment_hash,
+            "data",
+            f"ground_truth_translation{suffix}.parquet",
+        )
         df = pd.read_parquet(target_path)
 
         df["len"] = df["translated_solution"].map(len)
         df_sample_group = df.sort_values("len")
-        df_sample_group = df_sample_group[df_sample_group['translated_solution'].map(lambda x: '\\boxed{}' not in x)]
+        df_sample_group = df_sample_group[
+            df_sample_group["translated_solution"].map(lambda x: "\\boxed{}" not in x)
+        ]
         df_sample_group = df_sample_group.head(100)
         df = df.drop(columns=["len"])
 
@@ -160,11 +189,18 @@ def generate_sft_dataset(config):
 
     for suffix in ["", "_train"]:
         ground_truth_translation = pd.read_parquet(
-            os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
+            os.path.join(
+                "output",
+                experiment_hash,
+                "data",
+                f"ground_truth_translation{suffix}.parquet",
+            )
         )
 
         # Build the prompt
-        translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+        translation_prompt = get_translation_prompt(
+            config["experiment"]["experiment_params"]["translation_prompt"]
+        )
 
         l_inputs = []
         for i, row in ground_truth_translation.iterrows():
@@ -195,8 +231,17 @@ def generate_sft_dataset(config):
         print(f"Got {n_tokens} tokens for {path}")
 
 
-@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_prompted_translation(config, gt_translation_path_override=None, model_path_override=None, save_path_override=None, num_samples_override=None, sampling_temperature_override=None):
+@ray.remote(
+    num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32
+)
+def generate_prompted_translation(
+    config,
+    gt_translation_path_override=None,
+    model_path_override=None,
+    save_path_override=None,
+    num_samples_override=None,
+    sampling_temperature_override=None,
+):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
@@ -208,13 +253,19 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
 
     experiment_hash = compute_experiment_hash(config)
 
-    gt_translation_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    gt_translation_path = os.path.join(
+        "output", experiment_hash, "data", "ground_truth_translation.parquet"
+    )
     if gt_translation_path_override is not None:
-        gt_translation_path = gt_translation_path_override.replace("__HASH__", experiment_hash)
+        gt_translation_path = gt_translation_path_override.replace(
+            "__HASH__", experiment_hash
+        )
     ground_truth_translation = pd.read_parquet(gt_translation_path)
 
     # Build the prompt
-    translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+    translation_prompt = get_translation_prompt(
+        config["experiment"]["experiment_params"]["translation_prompt"]
+    )
 
     l_inputs = []
     for i, row in ground_truth_translation.iterrows():
@@ -247,7 +298,9 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
 
     tokenizer = AutoTokenizer.from_pretrained(sampling_model)
 
-    if config["experiment"]["experiment_params"].get("use_sft_model_for_sampling", False):
+    if config["experiment"]["experiment_params"].get(
+        "use_sft_model_for_sampling", False
+    ):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for generation instead...")
 
@@ -260,7 +313,11 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        rope_scaling={
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        },
         max_model_len=131072,
         tensor_parallel_size=n_gpus,
     )
@@ -269,7 +326,9 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
     if num_samples_override is not None:
         num_samples = num_samples_override
 
-    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"][
+        "temperature"
+    ]
     if sampling_temperature_override is not None:
         if type(sampling_temperature_override) is str:
             temperature = float(sampling_temperature_override)
@@ -277,17 +336,25 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
             temperature = sampling_temperature_override
 
     extra_sampling_kwargs = {}
-    if config["experiment"]["experiment_params"]["encoding_scheme"] == "speaking_zero_shot":
+    if (
+        config["experiment"]["experiment_params"]["encoding_scheme"]
+        == "speaking_zero_shot"
+    ):
         from vllm.sampling_params import GuidedDecodingParams
-        extra_sampling_kwargs['guided_decoding'] = GuidedDecodingParams(regex=r"\\boxed\{.+\}")
+
+        extra_sampling_kwargs["guided_decoding"] = GuidedDecodingParams(
+            regex=r"\\boxed\{.+\}"
+        )
     sampling_params = SamplingParams(
         temperature=temperature,
         max_tokens=12000,
         n=num_samples,
-        **extra_sampling_kwargs
+        **extra_sampling_kwargs,
     )
 
-    outputs = llm.chat([r["prompt"] for r in l_inputs], sampling_params=sampling_params, use_tqdm=True)
+    outputs = llm.chat(
+        [r["prompt"] for r in l_inputs], sampling_params=sampling_params, use_tqdm=True
+    )
 
     l_input_token_lens = [len(o.prompt_token_ids) for o in outputs]
     for i, output in enumerate(outputs):
@@ -295,7 +362,9 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
 
     # Compute logprobs on GT for perplexity calculations
     logprobs_sampling_params = SamplingParams(
-        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        temperature=config["experiment"]["experiment_params"]["sampling_params"][
+            "temperature"
+        ],
         max_tokens=1,
         logprobs=0,
         prompt_logprobs=1,
@@ -314,8 +383,13 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
         l_logprobs_prompts.append(prompt)
         l_start_end.append(get_assistant_turn_token_boundaries(prompt, tokenizer))
 
-    logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
-    gt_logprobs = [o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]] for i, o in enumerate(logprobs)]
+    logprobs = llm.chat(
+        l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True
+    )
+    gt_logprobs = [
+        o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]]
+        for i, o in enumerate(logprobs)
+    ]
     gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
     gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
     gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
@@ -337,7 +411,12 @@ def generate_prompted_translation(config, gt_translation_path_override=None, mod
 
 
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_openai_prompted_translation(config, system_prompt_override=None, user_prompt_suffix_override=None, sampling_temperature_override=None):
+def generate_openai_prompted_translation(
+    config,
+    system_prompt_override=None,
+    user_prompt_suffix_override=None,
+    sampling_temperature_override=None,
+):
     from openai import AsyncOpenAI
     from asyncio import Semaphore
     import asyncio
@@ -356,19 +435,20 @@ def generate_openai_prompted_translation(config, system_prompt_override=None, us
     experiment_hash = compute_experiment_hash(config)
 
     ground_truth_translation = pd.read_parquet(
-        os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+        os.path.join(
+            "output", experiment_hash, "data", "ground_truth_translation.parquet"
+        )
     )
 
     # Build the prompt
-    translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
+    translation_prompt_type = config["experiment"]["experiment_params"][
+        "translation_prompt"
+    ]
     translation_prompt = get_translation_prompt(translation_prompt_type)
 
     if translation_prompt_type == "speaking_zero_shot":
         # prefill answer
-        l_prefill = [{
-            "role": "assistant",
-            "content": r"\boxed"
-        }]
+        l_prefill = [{"role": "assistant", "content": r"\boxed"}]
     else:
         l_prefill = []
 
@@ -397,26 +477,37 @@ def generate_openai_prompted_translation(config, system_prompt_override=None, us
                         "role": "user",
                         "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding. {user_prompt_suffix}",
                     },
-                ] + l_prefill,
+                ]
+                + l_prefill,
             }
         )
 
     # Generate the outputs
     base_url = config["experiment"]["experiment_params"]["base_url"]
     model_name = config["experiment"]["experiment_params"]["model"]
-    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"][
+        "temperature"
+    ]
     if sampling_temperature_override is not None:
         if type(sampling_temperature_override) is str:
             temperature = float(sampling_temperature_override)
         else:
             temperature = sampling_temperature_override
 
-    api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
+    api_key = (
+        os.environ["ANTHROPIC_API_KEY"]
+        if "claude" in model_name
+        else os.environ["OPENAI_API_KEY"]
+    )
 
     d_additional_kwargs = {}
 
-    if config["experiment"]["experiment_params"].get("use_api_sft_model_for_sampling", False):
-        model_json_path = os.path.join("output", experiment_hash, "data", "sft_model_meta.json")
+    if config["experiment"]["experiment_params"].get(
+        "use_api_sft_model_for_sampling", False
+    ):
+        model_json_path = os.path.join(
+            "output", experiment_hash, "data", "sft_model_meta.json"
+        )
         with open(model_json_path, "r") as fp:
             d_model_json = json.load(fp)
         model_name = d_model_json["fine_tuned_model"]
@@ -426,11 +517,16 @@ def generate_openai_prompted_translation(config, system_prompt_override=None, us
         api_key=api_key,
         base_url=base_url,
     )
- 
+
     rate_limit = Semaphore(100)
+
     async def run_chat(conversation):
         max_tokens = 12000
-        if model_name.startswith("claude-3-haiku") or model_name.startswith("claude-3-opus") or model_name.startswith("claude-3-5-haiku"):
+        if (
+            model_name.startswith("claude-3-haiku")
+            or model_name.startswith("claude-3-opus")
+            or model_name.startswith("claude-3-5-haiku")
+        ):
             max_tokens = 4096
         if model_name.startswith("claude-3-5-sonnet-20241022"):
             max_tokens = 8192
@@ -443,7 +539,7 @@ def generate_openai_prompted_translation(config, system_prompt_override=None, us
                         messages=conversation,
                         temperature=temperature,
                         max_completion_tokens=max_tokens,
-                        **d_additional_kwargs
+                        **d_additional_kwargs,
                     )
 
                     ret = resp.choices[0].message.content
@@ -451,7 +547,7 @@ def generate_openai_prompted_translation(config, system_prompt_override=None, us
                     print(ret)
 
                     if translation_prompt_type == "speaking_zero_shot":
-                        ret = fr"\boxed{ret}"
+                        ret = rf"\boxed{ret}"
 
                     return ret
             except Exception as e:
@@ -476,26 +572,35 @@ def generate_openai_prompted_translation(config, system_prompt_override=None, us
         l_inputs[i]["gt_logprob_tokens"] = ["a"]
 
     df_output = pd.DataFrame(l_inputs)
-    df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_cot.parquet"))
+    df_output.to_parquet(
+        os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    )
 
 
-
-def judge_cot_style_adherence_deterministically(config, generated_cot_path_override=None):
+def judge_cot_style_adherence_deterministically(
+    config, generated_cot_path_override=None
+):
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from encoding_schemes import get_deterministic_adherence_fn
-    
-    fn_adherence_evaluator = get_deterministic_adherence_fn(config["experiment"]["experiment_params"]["encoding_scheme"], config)
+
+    fn_adherence_evaluator = get_deterministic_adherence_fn(
+        config["experiment"]["experiment_params"]["encoding_scheme"], config
+    )
 
     experiment_hash = compute_experiment_hash(config)
 
-    generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    generated_cot_path = os.path.join(
+        "output", experiment_hash, "data", "prompted_cot.parquet"
+    )
     if generated_cot_path_override is not None:
-        generated_cot_path = generated_cot_path_override.replace("__HASH__", experiment_hash)
+        generated_cot_path = generated_cot_path_override.replace(
+            "__HASH__", experiment_hash
+        )
 
     df_generated_cot = pd.read_parquet(generated_cot_path)
 
     l_judge_scores = []
-    for cots in df_generated_cot['model_cot']:
+    for cots in df_generated_cot["model_cot"]:
         l_instance_scores = []
         for cot in cots:
             l_instance_scores.append(1.0 if fn_adherence_evaluator(cot) else 0.0)
@@ -508,14 +613,23 @@ def judge_cot_style_adherence_deterministically(config, generated_cot_path_overr
 
 
 @ray.remote(num_cpus=16, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_path_override=None):
+def judge_cot_style_adherence(
+    config, generated_cot_path_override=None, sft_ref_path_override=None
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from encoding_schemes import get_deterministic_adherence_fn
     from speaking.encoded_cot_runner import judge_cot_style_adherence_deterministically
 
-    if get_deterministic_adherence_fn(config["experiment"]["experiment_params"]["encoding_scheme"], config) is not None:
-        judge_cot_style_adherence_deterministically(config, generated_cot_path_override=generated_cot_path_override)
+    if (
+        get_deterministic_adherence_fn(
+            config["experiment"]["experiment_params"]["encoding_scheme"], config
+        )
+        is not None
+    ):
+        judge_cot_style_adherence_deterministically(
+            config, generated_cot_path_override=generated_cot_path_override
+        )
         return
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -524,9 +638,13 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
 
     experiment_hash = compute_experiment_hash(config)
 
-    generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    generated_cot_path = os.path.join(
+        "output", experiment_hash, "data", "prompted_cot.parquet"
+    )
     if generated_cot_path_override is not None:
-        generated_cot_path = generated_cot_path_override.replace("__HASH__", experiment_hash)
+        generated_cot_path = generated_cot_path_override.replace(
+            "__HASH__", experiment_hash
+        )
 
     df_generated_cot = pd.read_parquet(generated_cot_path)
 
@@ -536,21 +654,34 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
 
     df_sft = pd.read_parquet(sft_ref_path)
 
-    translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
+    translation_prompt_type = config["experiment"]["experiment_params"][
+        "translation_prompt"
+    ]
     translation_prompt = get_translation_prompt(translation_prompt_type)
 
-    followed_encoding_style_judge = followed_encoding_style_judge + f"\n<instruction>\n{translation_prompt}\n</instruction>"
+    followed_encoding_style_judge = (
+        followed_encoding_style_judge
+        + f"\n<instruction>\n{translation_prompt}\n</instruction>"
+    )
 
     l_judge_prompts = []
     for _, generated_cot_row in df_generated_cot.iterrows():
         sft_row = df_sft.iloc[0]
 
-        sft_reference = sft_row['messages'][-1]['content']
+        sft_reference = sft_row["messages"][-1]["content"]
 
-        for cot in generated_cot_row['model_cot']:
-            l_judge_prompts.append([{"role": "user", "content": followed_encoding_style_judge + f"\n<text>{cot}</text>\n<reference_text>{sft_reference}</reference_text>"}])
+        for cot in generated_cot_row["model_cot"]:
+            l_judge_prompts.append(
+                [
+                    {
+                        "role": "user",
+                        "content": followed_encoding_style_judge
+                        + f"\n<text>{cot}</text>\n<reference_text>{sft_reference}</reference_text>",
+                    }
+                ]
+            )
 
-    api_key = os.environ['ANTHROPIC_API_KEY']
+    api_key = os.environ["ANTHROPIC_API_KEY"]
 
     client = AsyncOpenAI(
         api_key=api_key,
@@ -559,8 +690,9 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
 
     async def gather_all(tasks):
         return await asyncio.gather(*tasks)
- 
+
     rate_limit = Semaphore(30)
+
     async def run_chat(conversation):
         max_tokens = 12000
 
@@ -571,7 +703,7 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
                         model="claude-sonnet-4-20250514",
                         messages=conversation,
                         temperature=0.0,
-                        max_completion_tokens=max_tokens
+                        max_completion_tokens=max_tokens,
                     )
 
                     ret = resp.choices[0].message.content
@@ -594,7 +726,7 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
     outputs_idx = 0
     l_judge_scores = []
 
-    for cots in df_generated_cot['model_cot']:
+    for cots in df_generated_cot["model_cot"]:
         l_instance_scores = []
         for cot in cots:
             text = l_responses[outputs_idx]
@@ -602,7 +734,9 @@ def judge_cot_style_adherence(config, generated_cot_path_override=None, sft_ref_
 
             search_result = re.search("<answer>(.*?)</answer>", text)
             if search_result:
-                l_instance_scores.append(1.0 if search_result.group(1) == "Yes" else 0.0)
+                l_instance_scores.append(
+                    1.0 if search_result.group(1) == "Yes" else 0.0
+                )
             else:
                 l_instance_scores.append(0.0)
 
@@ -624,7 +758,9 @@ def judge_cot_encoding_English_coherence(config):
 
     experiment_hash = compute_experiment_hash(config)
 
-    target_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    target_path = os.path.join(
+        "output", experiment_hash, "data", "prompted_cot.parquet"
+    )
 
     df = pd.read_parquet(target_path)
 
@@ -635,24 +771,36 @@ def judge_cot_encoding_English_coherence(config):
     async def gather_all(tasks):
         return await asyncio.gather(*tasks)
 
-    l_inverted_cot = [[fn_inverse_encoding_scheme(cot) for cot in cots] for cots in df["model_cot"]]
-    if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
+    l_inverted_cot = [
+        [fn_inverse_encoding_scheme(cot) for cot in cots] for cots in df["model_cot"]
+    ]
+    if is_async_encoding_scheme(
+        config["experiment"]["experiment_params"]["encoding_scheme"]
+    ):
         l_inverted_cot = [gather_all(cots) for cots in l_inverted_cot]
         l_inverted_cot = asyncio.run(gather_all(l_inverted_cot))
 
     l_judge_prompts = []
     for cots in l_inverted_cot:
         for cot in cots:
-            l_judge_prompts.append([{"role": "user", "content": coherent_english_judge + f"\n<text>{cot}</text>"}])
+            l_judge_prompts.append(
+                [
+                    {
+                        "role": "user",
+                        "content": coherent_english_judge + f"\n<text>{cot}</text>",
+                    }
+                ]
+            )
 
-    api_key = os.environ['ANTHROPIC_API_KEY']
+    api_key = os.environ["ANTHROPIC_API_KEY"]
 
     client = AsyncOpenAI(
         api_key=api_key,
         base_url="https://api.anthropic.com/v1/",
     )
- 
+
     rate_limit = Semaphore(30)
+
     async def run_chat(conversation):
         max_tokens = 12000
 
@@ -663,7 +811,7 @@ def judge_cot_encoding_English_coherence(config):
                         model="claude-sonnet-4-20250514",
                         messages=conversation,
                         temperature=0.0,
-                        max_completion_tokens=max_tokens
+                        max_completion_tokens=max_tokens,
                     )
 
                     ret = resp.choices[0].message.content
@@ -694,7 +842,9 @@ def judge_cot_encoding_English_coherence(config):
 
             search_result = re.search("<answer>(.*?)</answer>", text)
             if search_result:
-                l_instance_scores.append(1.0 if search_result.group(1) == "Yes" else 0.0)
+                l_instance_scores.append(
+                    1.0 if search_result.group(1) == "Yes" else 0.0
+                )
             else:
                 l_instance_scores.append(0.0)
 
@@ -706,7 +856,9 @@ def judge_cot_encoding_English_coherence(config):
     df.to_parquet(target_path)
 
 
-@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
+@ray.remote(
+    num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32
+)
 def judge_math_solving_content(config):
     from vllm import LLM, SamplingParams
 
@@ -718,7 +870,9 @@ def judge_math_solving_content(config):
 
     experiment_hash = compute_experiment_hash(config)
 
-    generated_cot_path = os.path.join("output", experiment_hash, "data", "prompted_cot.parquet")
+    generated_cot_path = os.path.join(
+        "output", experiment_hash, "data", "prompted_cot.parquet"
+    )
     df_generated_cot = pd.read_parquet(generated_cot_path)
 
     sft_ref_path = os.path.join("output", experiment_hash, "data", "sft.parquet")
@@ -729,22 +883,36 @@ def judge_math_solving_content(config):
         model="Qwen/Qwen3-32B-FP8",
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        rope_scaling={
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        },
         max_model_len=131072,
-        tensor_parallel_size=2
+        tensor_parallel_size=2,
     )
 
     l_judge_prompts = []
     for _, generated_cot_row in df_generated_cot.iterrows():
-        for cot in generated_cot_row['model_cot']:
-            l_judge_prompts.append([{"role": "system", "content": "/no_think"}, {"role": "user", "content": doing_math_judge + f"\n<text>{cot}</text>"}])
+        for cot in generated_cot_row["model_cot"]:
+            l_judge_prompts.append(
+                [
+                    {"role": "system", "content": "/no_think"},
+                    {
+                        "role": "user",
+                        "content": doing_math_judge + f"\n<text>{cot}</text>",
+                    },
+                ]
+            )
 
     judge_sampling_params = SamplingParams(max_tokens=1024)
-    outputs = llm.chat(l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True)
+    outputs = llm.chat(
+        l_judge_prompts, sampling_params=judge_sampling_params, use_tqdm=True
+    )
     outputs_idx = 0
     l_judge_scores = []
 
-    for cots in df_generated_cot['model_cot']:
+    for cots in df_generated_cot["model_cot"]:
         l_instance_scores = []
         for cot in cots:
             text = outputs[outputs_idx].outputs[0].text
@@ -752,7 +920,9 @@ def judge_math_solving_content(config):
 
             search_result = re.search("<answer>(.*?)</answer>", text)
             if search_result:
-                l_instance_scores.append(1.0 if search_result.group(1) == "Yes" else 0.0)
+                l_instance_scores.append(
+                    1.0 if search_result.group(1) == "Yes" else 0.0
+                )
             else:
                 l_instance_scores.append(0.0)
 
@@ -763,7 +933,6 @@ def judge_math_solving_content(config):
     df_generated_cot.to_parquet(generated_cot_path)
 
     kill_vllm_process(llm)
-
 
 
 @ray.remote(num_cpus=4, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
@@ -785,17 +954,23 @@ def generate_together_prompted_translation(config):
     # Read deployment info to get model ID
     deployment_info_path = os.path.join(data_dir, "deployment_info.json")
     if not os.path.exists(deployment_info_path):
-        raise FileNotFoundError(f"Deployment info not found at {deployment_info_path}. Please ensure deployment is created first.")
-    
+        raise FileNotFoundError(
+            f"Deployment info not found at {deployment_info_path}. Please ensure deployment is created first."
+        )
+
     with open(deployment_info_path, "r") as f:
         deployment_info = json.load(f)
-    
-    deployment_model_id = deployment_info.get("deployment_model_path", deployment_info.get("deployment_id"))
+
+    deployment_model_id = deployment_info.get(
+        "deployment_model_path", deployment_info.get("deployment_id")
+    )
     if not deployment_model_id:
-        raise ValueError("No deployment_model_path or deployment_id found in deployment_info.json")
-    
+        raise ValueError(
+            "No deployment_model_path or deployment_id found in deployment_info.json"
+        )
+
     print(f"Using deployment model: {deployment_model_id}")
-    
+
     # Load tokenizer for the model
     base_model_name = config["experiment"]["experiment_params"]["model"]
     print(f"Loading tokenizer for model: {base_model_name}")
@@ -806,15 +981,14 @@ def generate_together_prompted_translation(config):
     )
 
     # Build the prompt
-    translation_prompt_type = config["experiment"]["experiment_params"]["translation_prompt"] 
+    translation_prompt_type = config["experiment"]["experiment_params"][
+        "translation_prompt"
+    ]
     translation_prompt = get_translation_prompt(translation_prompt_type)
 
     if translation_prompt_type == "speaking_zero_shot":
         # prefill answer
-        l_prefill = [{
-            "role": "assistant",
-            "content": r"\boxed"
-        }]
+        l_prefill = [{"role": "assistant", "content": r"\boxed"}]
     else:
         l_prefill = []
 
@@ -837,7 +1011,8 @@ def generate_together_prompted_translation(config):
                         "role": "user",
                         "content": f"{row['reference_problem']}\nThink step by step, making sure that your thinking is encoded according to the instructions. Then, provide your final answer in \\boxed{{}} without any encoding.",
                     },
-                ] + l_prefill,
+                ]
+                + l_prefill,
             }
         )
 
@@ -845,19 +1020,22 @@ def generate_together_prompted_translation(config):
     api_key = os.environ.get("TOGETHER_API_KEY")
     if not api_key:
         raise ValueError("TOGETHER_API_KEY environment variable not set")
-    
+
     client = AsyncTogether(api_key=api_key)
 
-    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"][
+        "temperature"
+    ]
     n_samples = config["experiment"]["experiment_params"]["sampling_params"].get("n", 1)
-    
+
     # Generate rollouts
     print(f"Generating {n_samples} rollout(s) for {len(l_inputs)} prompts...")
-    
+
     rate_limit = Semaphore(30)  # Together AI has lower rate limits than OpenAI
+
     async def run_chat(conversation, include_logprobs=False):
         max_tokens = 12000
-        
+
         for retry in range(20):
             try:
                 async with rate_limit:
@@ -867,29 +1045,29 @@ def generate_together_prompted_translation(config):
                         "temperature": temperature,
                         "max_tokens": max_tokens,
                     }
-                    
+
                     if include_logprobs:
                         params["logprobs"] = 1
                         params["echo"] = True  # Include prompt tokens in logprobs
-                    
+
                     resp = await client.chat.completions.create(**params)
-                    
+
                     ret = resp.choices[0].message.content
                     print(f"Prompt: {conversation[-1]['content'][:100]}...")
                     print(f"Response: {ret[:200]}...")
-                    
+
                     if translation_prompt_type == "speaking_zero_shot":
-                        ret = fr"\boxed{ret}"
-                    
-                    if include_logprobs and hasattr(resp.choices[0], 'logprobs'):
+                        ret = rf"\boxed{ret}"
+
+                    if include_logprobs and hasattr(resp.choices[0], "logprobs"):
                         return ret, resp.choices[0].logprobs
                     else:
                         return ret
-                        
+
             except Exception as e:
                 print(f"Error on retry {retry}: {e}")
-                await asyncio.sleep(min(2 ** retry, 60))
-        
+                await asyncio.sleep(min(2**retry, 60))
+
         raise Exception(f"Ran out of retries for conversation: {conversation}")
 
     async def gather_all(tasks):
@@ -901,25 +1079,29 @@ def generate_together_prompted_translation(config):
         # Generate n_samples rollouts for each input
         for _ in range(n_samples):
             l_responses.append(run_chat(l_inputs[i]["prompt"], include_logprobs=False))
-    
+
     l_responses = asyncio.run(gather_all(l_responses))
-    
+
     # Organize responses by input
     for i in range(len(l_inputs)):
         start_idx = i * n_samples
         end_idx = start_idx + n_samples
         l_inputs[i]["model_cot"] = l_responses[start_idx:end_idx]
-    
+
     # Now get logprobs for the ground truth translations
     print("Computing logprobs for ground truth translations...")
-    
+
     l_logprob_prompts = []
     l_assistant_token_starts = []
-    
+
     for row in l_inputs:
         # Create prompt with ground truth as assistant response
-        logprob_prompt = row["prompt"][:-1] if translation_prompt_type == "speaking_zero_shot" else row["prompt"]
-        
+        logprob_prompt = (
+            row["prompt"][:-1]
+            if translation_prompt_type == "speaking_zero_shot"
+            else row["prompt"]
+        )
+
         # First, get the tokens for the prompt WITHOUT the assistant response
         prompt_tokens = tokenizer.apply_chat_template(
             logprob_prompt,
@@ -927,27 +1109,24 @@ def generate_together_prompted_translation(config):
             tokenize=True,
         )
         prompt_token_count = len(prompt_tokens)
-        
+
         # Now add the assistant response
-        logprob_prompt = logprob_prompt + [{
-            "role": "assistant",
-            "content": row["translated_solution"]
-        }]
+        logprob_prompt = logprob_prompt + [
+            {"role": "assistant", "content": row["translated_solution"]}
+        ]
         # The assistant response starts after prompt_token_count tokens
         l_assistant_token_starts.append(prompt_token_count)
         l_logprob_prompts.append(logprob_prompt)
-    
+
     # Get logprobs for ground truth
     async def get_logprobs_batch():
         tasks = []
         for prompt in l_logprob_prompts:
             # Use tokenizer to convert chat format to string
             prompt_str = tokenizer.apply_chat_template(
-                prompt,
-                tokenize=False,
-                add_generation_prompt=False
+                prompt, tokenize=False, add_generation_prompt=False
             )
-            
+
             async def get_completion_logprobs(prompt_text):
                 for retry in range(20):
                     try:
@@ -958,47 +1137,49 @@ def generate_together_prompted_translation(config):
                                 max_tokens=1,  # We just want logprobs, not generation
                                 temperature=0,
                                 logprobs=1,
-                                echo=True  # Include prompt in response to get all logprobs
+                                echo=True,  # Include prompt in response to get all logprobs
                             )
-                            
-                            if hasattr(resp.choices[0], 'logprobs'):
+
+                            if hasattr(resp.choices[0], "logprobs"):
                                 return resp.choices[0].logprobs
                             else:
                                 return None
-                                
+
                     except Exception as e:
                         print(f"Error getting logprobs on retry {retry}: {e}")
-                        await asyncio.sleep(min(2 ** retry, 60))
-                
+                        await asyncio.sleep(min(2**retry, 60))
+
                 return None
-            
+
             tasks.append(get_completion_logprobs(prompt_str))
-        
+
         return await gather_all(tasks)
-    
+
     logprobs_results = asyncio.run(get_logprobs_batch())
-    
+
     # Process logprobs
     for i, logprobs_data in enumerate(logprobs_results):
         # Extract logprobs for the assistant response portion
         tokens = logprobs_data.tokens
         token_logprobs = logprobs_data.token_logprobs
-        
+
         # Use the pre-calculated assistant token start position
         assistant_start_idx = l_assistant_token_starts[i]
-        
+
         if assistant_start_idx < len(token_logprobs):
             gt_logprobs = token_logprobs[assistant_start_idx:]
             gt_tokens = tokens[assistant_start_idx:]
-            
+
             # Filter out None values (first token doesn't have logprob)
             gt_logprobs = [lp if lp is not None else -100.0 for lp in gt_logprobs]
-            
+
             l_inputs[i]["gt_logprobs"] = gt_logprobs
             l_inputs[i]["gt_logprob_tokens"] = gt_tokens
         else:
             # Fallback: token mismatch, try to extract what we can
-            raise RuntimeError(f"Warning: Token count mismatch for input {i}. Expected start: {assistant_start_idx}, got {len(token_logprobs)} tokens total")
+            raise RuntimeError(
+                f"Warning: Token count mismatch for input {i}. Expected start: {assistant_start_idx}, got {len(token_logprobs)} tokens total"
+            )
 
     df_output = pd.DataFrame(l_inputs)
     df_output.to_parquet(os.path.join(data_dir, "prompted_cot.parquet"))
@@ -1014,7 +1195,12 @@ def tear_down_fireworks_deployment(config):
 
 
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=32 * 1024 * 1024 * 1024)
-def generate_ExIt_dataset(config, prompted_cot_path_override=None, math_accuracy_path_override=None, save_path_override=None):
+def generate_ExIt_dataset(
+    config,
+    prompted_cot_path_override=None,
+    math_accuracy_path_override=None,
+    save_path_override=None,
+):
     assert prompted_cot_path_override is not None
     assert save_path_override is not None
 
@@ -1025,7 +1211,9 @@ def generate_ExIt_dataset(config, prompted_cot_path_override=None, math_accuracy
     experiment_hash = compute_experiment_hash(config)
 
     prompted_cot_path = prompted_cot_path_override.replace("__HASH__", experiment_hash)
-    math_accuracy_path = math_accuracy_path_override.replace("__HASH__", experiment_hash)
+    math_accuracy_path = math_accuracy_path_override.replace(
+        "__HASH__", experiment_hash
+    )
     save_path = save_path_override.replace("__HASH__", experiment_hash)
 
     df_prompted_cot = pd.read_parquet(prompted_cot_path)
@@ -1040,21 +1228,26 @@ def generate_ExIt_dataset(config, prompted_cot_path_override=None, math_accuracy
         prompted_cot_row = df_prompted_cot.iloc[i]
         math_acc_row = df_math_accuracy.iloc[i]
 
-        n_samples = len(prompted_cot_row['model_cot'])
+        n_samples = len(prompted_cot_row["model_cot"])
         for j in range(n_samples):
-            if math_acc_row['is_corrects'][j] == 1.0 and prompted_cot_row['followed_encoding_style'][j] == 1.0:
+            if (
+                math_acc_row["is_corrects"][j] == 1.0
+                and prompted_cot_row["followed_encoding_style"][j] == 1.0
+            ):
                 d_example = {
-                    'messages': list(prompted_cot_row['prompt']) + [{
-                        'role': 'assistant',
-                        'content': prompted_cot_row['model_cot'][j]
-                    }]
+                    "messages": list(prompted_cot_row["prompt"])
+                    + [
+                        {
+                            "role": "assistant",
+                            "content": prompted_cot_row["model_cot"][j],
+                        }
+                    ]
                 }
                 break
 
         if d_example is not None:
             l_training_data.append(d_example)
 
-    
     df = pd.DataFrame(l_training_data)
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     df.to_parquet(save_path)

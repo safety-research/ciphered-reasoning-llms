@@ -6,10 +6,11 @@ from flair.splitter import SegtokSentenceSplitter
 
 import torch
 
+
 @lru_cache
 def get_sequence_tagger():
     torch.set_num_threads(16)
-    return SequenceTagger.load("flair/pos-english-fast").to('cpu')
+    return SequenceTagger.load("flair/pos-english-fast").to("cpu")
 
 
 @lru_cache
@@ -48,10 +49,16 @@ def count_num_sentences(s):
 
 
 def count_num_nouns(s, ignore_sentence_if_found):
-    return count_pos(s, ["NN", "NNP", "NNPS", "NNS"], ignore_sentence_if_found=ignore_sentence_if_found)
+    return count_pos(
+        s,
+        ["NN", "NNP", "NNPS", "NNS"],
+        ignore_sentence_if_found=ignore_sentence_if_found,
+    )
 
 
 def count_num_verbs(s, ignore_sentence_if_found):
-    return count_pos(s, ["VB", "VBD", "VBG", "VBN", "VBP", "VBZ"], ignore_sentence_if_found=ignore_sentence_if_found)
-
-
+    return count_pos(
+        s,
+        ["VB", "VBD", "VBG", "VBN", "VBP", "VBZ"],
+        ignore_sentence_if_found=ignore_sentence_if_found,
+    )

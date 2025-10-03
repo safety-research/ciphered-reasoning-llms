@@ -11,7 +11,7 @@ from encoding_schemes.code import python_code_percentage, java_code_percentage
 
 
 client = AsyncOpenAI(
-    api_key=os.environ['ANTHROPIC_API_KEY'],
+    api_key=os.environ["ANTHROPIC_API_KEY"],
     base_url="https://api.anthropic.com/v1/",
 )
 
@@ -24,18 +24,20 @@ async def do_translation(s, language, additional_instructions):
             async with rate_limit:
                 resp = await client.chat.completions.create(
                     model="claude-sonnet-4-20250514",
-                    messages=[{
-                        "role": "user",
-                        "content": f"""
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"""
 Translate the following text to {language}. Output your translation in <translation> tags. Any content in \\boxed{{}} should be kept as is (along with the boxed LaTeX itself).
 {additional_instructions}
 <text>
 {s}
 </text>
-                        """.strip()
-                    }],
+                        """.strip(),
+                        }
+                    ],
                     temperature=1.0,
-                    max_tokens=30000
+                    max_tokens=30000,
                 )
 
                 ret = resp.choices[0].message.content
@@ -58,7 +60,11 @@ Translate the following text to {language}. Output your translation in <translat
 
 
 async def translate_to_English(s, source_language):
-    ret = await do_translation(s, "English", f"The text is in {source_language}. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.")
+    ret = await do_translation(
+        s,
+        "English",
+        f"The text is in {source_language}. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.",
+    )
     return ret[0]
 
 
@@ -85,7 +91,11 @@ async def translate_to_Arabic(s):
 
 async def translate_to_Adyghe(s):
     # rare language
-    return await do_translation(s, "Adyghe", "Try your best to translate any words which do not have literal translations, using loan words or your best guess. You must translate the text.")
+    return await do_translation(
+        s,
+        "Adyghe",
+        "Try your best to translate any words which do not have literal translations, using loan words or your best guess. You must translate the text.",
+    )
 
 
 briefhand_instructions = """
@@ -330,12 +340,21 @@ async def translate_to_Briefhand(s):
 
 
 async def translate_from_Briefhand(s):
-    ret = await do_translation(s, "English", briefhand_instructions + "\nThe text is in Briefhand. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.")
+    ret = await do_translation(
+        s,
+        "English",
+        briefhand_instructions
+        + "\nThe text is in Briefhand. If some parts don't make sense, translate them as is. Do not try to add your own interpretation of what you think the text is trying to say.",
+    )
     return ret[0]
 
 
 async def translate_to_morse_code(s):
-    return await do_translation(s, "Morse code", "Any characters which do not have Morse code mappings should be kept as is.")
+    return await do_translation(
+        s,
+        "Morse code",
+        "Any characters which do not have Morse code mappings should be kept as is.",
+    )
 
 
 async def translate_to_Python(s):

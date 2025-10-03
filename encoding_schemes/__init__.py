@@ -9,25 +9,21 @@ from encoding_schemes.ciphers import (
     base64_2x_cipher,
     base64_3x_cipher,
     caesar_cipher,
-
     inverse_rot13_cipher,
     inverse_base64_cipher,
     inverse_base64_2x_cipher,
     inverse_base64_3x_cipher,
     inverse_caesar_cipher,
-
     calculate_base64_cipher_adherence,
     calculate_base64_2x_cipher_adherence,
-    calculate_base64_3x_cipher_adherence
+    calculate_base64_3x_cipher_adherence,
 )
 from encoding_schemes.compression import (
     gzip_to_bpe_encoded,
     gzip_to_base64_encoded,
-
     inverse_gzip_to_bpe_encoded,
     inverse_gzip_to_base64_encoded,
-
-    calculate_gzip_base64_adherence
+    calculate_gzip_base64_adherence,
 )
 from encoding_schemes.letter_permutations import (
     reverse_letters_in_each_word,
@@ -36,8 +32,7 @@ from encoding_schemes.letter_permutations import (
     random_permute_letters_in_each_word,
     swap_even_odd_letters_in_each_word,
     reverse_fibonacci_indices_in_each_word,
-    
-    calculate_letter_permutation_adherence
+    calculate_letter_permutation_adherence,
 )
 from encoding_schemes.destructive_mutations import (
     replace_80pct_letters_with_star,
@@ -45,10 +40,9 @@ from encoding_schemes.destructive_mutations import (
     first_token_of_each_word_model_tokenizer,
     remove_all_verbs,
     remove_all_nouns,
-
     calculate_zero_shot_adherence,
     calculate_remove_all_nouns_adherence,
-    calculate_remove_all_verbs_adherence
+    calculate_remove_all_verbs_adherence,
 )
 from encoding_schemes.letter_substitutions import (
     letter_to_word_with_dot,
@@ -58,10 +52,9 @@ from encoding_schemes.letter_substitutions import (
     inverse_dot_between_chars,
     space_between_chars,
     inverse_space_between_chars,
-
     calculate_letter_to_word_with_dot_adherence,
     calculate_dot_between_chars_adherence,
-    calculate_space_between_chars_adherence
+    calculate_space_between_chars_adherence,
 )
 from encoding_schemes.translations import (
     translate_to_English,
@@ -76,9 +69,8 @@ from encoding_schemes.translations import (
     translate_to_morse_code,
     translate_to_Python,
     translate_to_enterprise_Java,
-
     calculate_Python_adherence,
-    calculate_Java_adherence
+    calculate_Java_adherence,
 )
 from encoding_schemes.steganography import (
     speaking_math_safety_steg,
@@ -86,7 +78,7 @@ from encoding_schemes.steganography import (
     speaking_math_news_article_steg,
     speaking_math_enterprise_java_steg,
     speaking_math_weather_report_steg,
-    speaking_math_numbers_sequence_steg
+    speaking_math_numbers_sequence_steg,
 )
 from encoding_schemes.themes import (
     paraphrase_naive,
@@ -100,8 +92,7 @@ from encoding_schemes.themes import (
     math_textbook_article,
     five_emojis,
     replace_math_content_with_black_box,
-
-    compute_five_emojis_adherence
+    compute_five_emojis_adherence,
 )
 
 
@@ -118,72 +109,55 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "zero_shot": zero_shot,
         "reverse_zero_shot": zero_shot,
         "speaking_zero_shot": zero_shot,
-
         "identity": identity,
         "reverse_identity": identity,
         "speaking_identity": identity,
-
         "letter_to_word_with_dot": letter_to_word_with_dot,
         "reverse_letter_to_word_with_dot": letter_to_word_with_dot,
         "speaking_letter_to_word_with_dot": letter_to_word_with_dot,
-
         "dot_between_chars": dot_between_chars,
         "reverse_dot_between_chars": dot_between_chars,
         "speaking_dot_between_chars": dot_between_chars,
-
         "speaking_space_between_chars": space_between_chars,
-
         "letter_to_poem_first_letter": letter_to_poem_first_letter,
         "reverse_letter_to_poem_first_letter": letter_to_poem_first_letter,
         # ciphers
         "rot13_cipher": rot13_cipher,
         "reverse_rot13_cipher": rot13_cipher,
         "speaking_rot13_cipher": rot13_cipher,
-
         "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_no_math_expressions_cipher,
         "speaking_reverse_letters_in_each_word_only_math_expressions": reverse_letters_in_each_word_math_expressions_only_cipher,
-
         "base64_cipher": base64_cipher,
         "reverse_base64_cipher": base64_cipher,
         "speaking_base64_cipher": base64_cipher,
-
         "base64_2x_cipher": base64_2x_cipher,
         "reverse_base64_2x_cipher": base64_2x_cipher,
         "speaking_base64_2x_cipher": base64_2x_cipher,
-
         "base64_3x_cipher": base64_3x_cipher,
         "reverse_base64_3x_cipher": base64_3x_cipher,
         "speaking_base64_3x_cipher": base64_3x_cipher,
-
         "caesar_cipher": caesar_cipher,
         "reverse_caesar_cipher": caesar_cipher,
         "speaking_caesar_cipher": caesar_cipher,
-
         # compression
         "gzip_to_bpe_encoded": gzip_to_bpe_encoded,
         "reverse_gzip_to_bpe_encoded": gzip_to_bpe_encoded,
         "speaking_gzip_to_bpe_encoded": gzip_to_bpe_encoded,
-
         "gzip_to_base64_encoded": gzip_to_base64_encoded,
         "reverse_gzip_to_base64_encoded": gzip_to_base64_encoded,
         "speaking_gzip_to_base64_encoded": gzip_to_base64_encoded,
-
         # letter permutations
         "reverse_letters_in_each_word": reverse_letters_in_each_word,
         "reverse_reverse_letters_in_each_word": reverse_letters_in_each_word,
         "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word,
-
         "random_permute_letters_in_each_word": random_permute_letters_in_each_word,
         "reverse_random_permute_letters_in_each_word": random_permute_letters_in_each_word,
-
         "swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word,
         "reverse_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word,
         "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word,
-
         "reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word,
         "reverse_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word,
         "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word,
-
         # destructive mutations
         "replace_80pct_letters_with_star": replace_80pct_letters_with_star,
         "reverse_replace_80pct_letters_with_star": replace_80pct_letters_with_star,
@@ -193,7 +167,6 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "reverse_first_token_of_each_word_model_tokenizer": tokenizer,
         "remove_all_verbs": remove_all_verbs,
         "remove_all_nouns": remove_all_nouns,
-
         # language translations
         "speaking_French": translate_to_French,
         "speaking_Chinese": translate_to_Chinese,
@@ -205,7 +178,6 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "speaking_Morse_code": translate_to_morse_code,
         "speaking_Python": translate_to_Python,
         "speaking_enterprise_Java": translate_to_enterprise_Java,
-
         # steg
         "speaking_math_safety_steg": speaking_math_safety_steg,
         "speaking_math_sonnet_steg": speaking_math_sonnet_steg,
@@ -213,7 +185,6 @@ def get_encoding_scheme(encoding_scheme_name, config):
         "speaking_math_enterprise_java_steg": speaking_math_enterprise_java_steg,
         "speaking_math_weather_report_steg": speaking_math_weather_report_steg,
         "speaking_math_numbers_sequence_steg": speaking_math_numbers_sequence_steg,
-
         # Themes
         "speaking_paraphrase_naive": paraphrase_naive,
         "speaking_pirate_speak": pirate_speak,
@@ -241,24 +212,23 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
         return x
 
     encoding_map = {
-        "speaking_zero_shot": identity, # placeholder since we reuse the pipeline from math CoT for zero shot
+        "speaking_zero_shot": identity,  # placeholder since we reuse the pipeline from math CoT for zero shot
         "speaking_identity": identity,
         "speaking_letter_to_word_with_dot": inverse_letter_to_word_with_dot,
         "speaking_dot_between_chars": inverse_dot_between_chars,
         "speaking_space_between_chars": inverse_space_between_chars,
-        "speaking_rot13_cipher": rot13_cipher, # rot13 is symmetric
+        "speaking_rot13_cipher": rot13_cipher,  # rot13 is symmetric
         "speaking_base64_cipher": inverse_base64_cipher,
         "speaking_base64_2x_cipher": inverse_base64_2x_cipher,
         "speaking_base64_3x_cipher": inverse_base64_3x_cipher,
         "speaking_caesar_cipher": inverse_caesar_cipher,
         "speaking_gzip_to_bpe_encoded": inverse_gzip_to_bpe_encoded,
         "speaking_gzip_to_base64_encoded": inverse_gzip_to_base64_encoded,
-        "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word, # reverse word letters is symmetric
+        "speaking_reverse_letters_in_each_word": reverse_letters_in_each_word,  # reverse word letters is symmetric
         "speaking_reverse_letters_in_each_word_no_math_expressions": reverse_letters_in_each_word_no_math_expressions_cipher,
         "speaking_reverse_letters_in_each_word_only_math_expressions": reverse_letters_in_each_word_math_expressions_only_cipher,
-        "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word, # symmetric
-        "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word, # also symmetric
-
+        "speaking_swap_even_odd_letters_in_each_word": swap_even_odd_letters_in_each_word,  # symmetric
+        "speaking_reverse_fibonacci_indices_in_each_word": reverse_fibonacci_indices_in_each_word,  # also symmetric
         "speaking_French": lambda x: translate_to_English(x, "French"),
         "speaking_Chinese": lambda x: translate_to_English(x, "Chinese"),
         "speaking_Korean": lambda x: translate_to_English(x, "Korean"),
@@ -267,9 +237,8 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
         "speaking_Adyghe": lambda x: translate_to_English(x, "Adyghe"),
         "speaking_Briefhand": translate_from_Briefhand,
         "speaking_Morse_code": lambda x: translate_to_English(x, "Morse code"),
-        "speaking_Python": async_identity, # Python/Java don't have coherency checks
+        "speaking_Python": async_identity,  # Python/Java don't have coherency checks
         "speaking_enterprise_Java": async_identity,
-
         # Steg doesn't measure coherence because the expectation is the output will be coherent
         # and we measure detectability instead
         "speaking_math_safety_steg": async_identity,
@@ -278,10 +247,9 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
         "speaking_math_enterprise_java_steg": async_identity,
         "speaking_math_weather_report_steg": async_identity,
         "speaking_math_numbers_sequence_steg": async_identity,
-
         # destructive mutations that should be easy to keep coherent
         "remove_all_verbs": async_identity,
-        "remove_all_nouns": async_identity
+        "remove_all_nouns": async_identity,
     }
 
     try:
@@ -291,39 +259,39 @@ def get_inverse_encoding_scheme(encoding_scheme_name, config):
 
 
 def is_async_encoding_scheme(encoding_scheme_name):
-    s_async_encodings = set([
-        "speaking_French",
-        "speaking_Chinese",
-        "speaking_Korean",
-        "speaking_Russian",
-        "speaking_Arabic",
-        "speaking_Adyghe",
-        "speaking_Briefhand",
-        "speaking_Morse_code",
-        "speaking_Python",
-        "speaking_enterprise_Java",
-        "speaking_math_safety_steg",
-        "speaking_math_sonnet_steg",
-        "speaking_math_news_article_steg",
-        "speaking_math_enterprise_java_steg",
-        "speaking_math_weather_report_steg",
-        "speaking_math_numbers_sequence_steg",
-
-        "remove_all_verbs",
-        "remove_all_nouns",
-
-        "speaking_paraphrase_naive",
-        "speaking_pirate_speak",
-        "speaking_leet_speak",
-        "speaking_yoda_speak",
-        "speaking_shakespearean_text",
-        "speaking_insert_tweet",
-        "speaking_python_snippet_comment",
-        "speaking_croissant_news_article",
-        "speaking_math_textbook_article",
-        "speaking_five_emojis",
-        "speaking_replace_math_content_with_black_box",
-    ])
+    s_async_encodings = set(
+        [
+            "speaking_French",
+            "speaking_Chinese",
+            "speaking_Korean",
+            "speaking_Russian",
+            "speaking_Arabic",
+            "speaking_Adyghe",
+            "speaking_Briefhand",
+            "speaking_Morse_code",
+            "speaking_Python",
+            "speaking_enterprise_Java",
+            "speaking_math_safety_steg",
+            "speaking_math_sonnet_steg",
+            "speaking_math_news_article_steg",
+            "speaking_math_enterprise_java_steg",
+            "speaking_math_weather_report_steg",
+            "speaking_math_numbers_sequence_steg",
+            "remove_all_verbs",
+            "remove_all_nouns",
+            "speaking_paraphrase_naive",
+            "speaking_pirate_speak",
+            "speaking_leet_speak",
+            "speaking_yoda_speak",
+            "speaking_shakespearean_text",
+            "speaking_insert_tweet",
+            "speaking_python_snippet_comment",
+            "speaking_croissant_news_article",
+            "speaking_math_textbook_article",
+            "speaking_five_emojis",
+            "speaking_replace_math_content_with_black_box",
+        ]
+    )
 
     return encoding_scheme_name in s_async_encodings
 
@@ -339,28 +307,39 @@ def get_deterministic_adherence_fn(encoding_scheme_name, config):
         "speaking_base64_2x_cipher": calculate_base64_2x_cipher_adherence,
         "speaking_base64_3x_cipher": calculate_base64_3x_cipher_adherence,
         "speaking_gzip_to_base64_encoded": calculate_gzip_base64_adherence,
-        "speaking_reverse_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word),
-        "speaking_reverse_letters_in_each_word_no_math_expressions": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word_no_math_expressions_cipher),
-        "speaking_reverse_letters_in_each_word_only_math_expressions": lambda x: calculate_letter_permutation_adherence(x, reverse_letters_in_each_word_math_expressions_only_cipher),
-        "speaking_swap_even_odd_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(x, swap_even_odd_letters_in_each_word),
-        "speaking_reverse_fibonacci_indices_in_each_word": lambda x: calculate_letter_permutation_adherence(x, reverse_fibonacci_indices_in_each_word),
-        
-        "speaking_rot13_cipher": lambda x: calculate_letter_permutation_adherence(x, inverse_rot13_cipher),
-        "speaking_caesar_cipher": lambda x: calculate_letter_permutation_adherence(x, inverse_caesar_cipher),
-
+        "speaking_reverse_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(
+            x, reverse_letters_in_each_word
+        ),
+        "speaking_reverse_letters_in_each_word_no_math_expressions": lambda x: calculate_letter_permutation_adherence(
+            x, reverse_letters_in_each_word_no_math_expressions_cipher
+        ),
+        "speaking_reverse_letters_in_each_word_only_math_expressions": lambda x: calculate_letter_permutation_adherence(
+            x, reverse_letters_in_each_word_math_expressions_only_cipher
+        ),
+        "speaking_swap_even_odd_letters_in_each_word": lambda x: calculate_letter_permutation_adherence(
+            x, swap_even_odd_letters_in_each_word
+        ),
+        "speaking_reverse_fibonacci_indices_in_each_word": lambda x: calculate_letter_permutation_adherence(
+            x, reverse_fibonacci_indices_in_each_word
+        ),
+        "speaking_rot13_cipher": lambda x: calculate_letter_permutation_adherence(
+            x, inverse_rot13_cipher
+        ),
+        "speaking_caesar_cipher": lambda x: calculate_letter_permutation_adherence(
+            x, inverse_caesar_cipher
+        ),
         "remove_all_verbs": calculate_remove_all_verbs_adherence,
         "remove_all_nouns": calculate_remove_all_nouns_adherence,
-
         "speaking_five_emojis": compute_five_emojis_adherence,
-
         "speaking_Python": calculate_Python_adherence,
         "speaking_enterprise_Java": calculate_Java_adherence,
-
-        "speaking_paraphrase_naive": lambda x: True
+        "speaking_paraphrase_naive": lambda x: True,
     }
 
     try:
         return encoding_map[encoding_scheme_name]
     except KeyError:
-        print(f"Unknown encoding scheme: {encoding_scheme_name}, returning None and defaulting to prompted judge!")
+        print(
+            f"Unknown encoding scheme: {encoding_scheme_name}, returning None and defaulting to prompted judge!"
+        )
         return None

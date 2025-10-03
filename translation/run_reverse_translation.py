@@ -29,16 +29,19 @@ def generate_ground_truth_translation(config, dataset_override=None):
     from data import get_dataset
     from orchestration.experiment_meta_saver import compute_experiment_hash
 
-    fn_encoding_scheme = get_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"], config)
+    fn_encoding_scheme = get_encoding_scheme(
+        config["experiment"]["experiment_params"]["encoding_scheme"], config
+    )
 
     dataset_name = config["experiment"]["experiment_params"]["dataset"]
     if dataset_override:
         dataset_name = dataset_override
     dataset = get_dataset(dataset_name)
 
-
     experiment_hash = compute_experiment_hash(config)
-    target_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+    target_path = os.path.join(
+        "output", experiment_hash, "data", "ground_truth_translation.parquet"
+    )
 
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
@@ -48,22 +51,34 @@ def generate_ground_truth_translation(config, dataset_override=None):
     ref_translation_cot = [None for _ in range(len(dataset))]
 
     translated_text = [fn_encoding_scheme(s) for s in dataset]
-    if is_async_encoding_scheme(config["experiment"]["experiment_params"]["encoding_scheme"]):
+    if is_async_encoding_scheme(
+        config["experiment"]["experiment_params"]["encoding_scheme"]
+    ):
         translated_text = asyncio.run(gather_all(translated_text))
         ref_translation_cot = [t[1] for t in translated_text]
         translated_text = [t[0] for t in translated_text]
 
     # Note that translated is the reference input and the English is the translated target!
-    df = pd.DataFrame({"reference_text": translated_text, "translated_text": dataset, "ref_translation_cot": ref_translation_cot})
+    df = pd.DataFrame(
+        {
+            "reference_text": translated_text,
+            "translated_text": dataset,
+            "ref_translation_cot": ref_translation_cot,
+        }
+    )
 
     if config["experiment"]["experiment_params"].get("validation_set_frac", 0):
-        validation_set_frac = config["experiment"]["experiment_params"]["validation_set_frac"]
+        validation_set_frac = config["experiment"]["experiment_params"][
+            "validation_set_frac"
+        ]
         train_set_frac = 1.0 - validation_set_frac
 
         df_train = df.sample(frac=train_set_frac, random_state=42)
         df_valid = df[~df.index.isin(df_train.index)]
 
-        train_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation_train.parquet")
+        train_path = os.path.join(
+            "output", experiment_hash, "data", "ground_truth_translation_train.parquet"
+        )
         df_train.to_parquet(train_path)
         df_valid.to_parquet(target_path)
     else:
@@ -71,12 +86,16 @@ def generate_ground_truth_translation(config, dataset_override=None):
 
 
 def get_few_shot_examples(df, df_sample_group, config):
-    n_few_shot_examples = config["experiment"]["experiment_params"].get("n_few_shot_examples", 0)
+    n_few_shot_examples = config["experiment"]["experiment_params"].get(
+        "n_few_shot_examples", 0
+    )
 
     l_few_shot_examples = []
 
     for i, row in df.iterrows():
-        df_sample = df_sample_group[df_sample_group["translated_text"] != row["translated_text"]]
+        df_sample = df_sample_group[
+            df_sample_group["translated_text"] != row["translated_text"]
+        ]
         df_sample = df_sample.sample(n=n_few_shot_examples, random_state=42)
 
         s = "\n"
@@ -85,7 +104,8 @@ def get_few_shot_examples(df, df_sample_group, config):
             idx += 1
 
             s += (
-                f"Example {idx}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}" + "\n"
+                f"Example {idx}. Input: {sample_row['reference_text']} Output: {sample_row['translated_text']}"
+                + "\n"
             )
 
         l_few_shot_examples.append(s)
@@ -107,12 +127,19 @@ def generate_fewshot_prompt(config):
         l_suffixes.append("_train")
 
     for suffix in l_suffixes:
-        target_path = os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
+        target_path = os.path.join(
+            "output",
+            experiment_hash,
+            "data",
+            f"ground_truth_translation{suffix}.parquet",
+        )
         df = pd.read_parquet(target_path)
 
         df["len"] = df["translated_solution"].map(len)
         df_sample_group = df.sort_values("len")
-        df_sample_group = df_sample_group[df_sample_group['translated_solution'].map(lambda x: '\\boxed{}' not in x)]
+        df_sample_group = df_sample_group[
+            df_sample_group["translated_solution"].map(lambda x: "\\boxed{}" not in x)
+        ]
         df_sample_group = df_sample_group.head(100)
         df = df.drop(columns=["len"])
 
@@ -121,7 +148,12 @@ def generate_fewshot_prompt(config):
 
 
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
-def generate_sft_dataset(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text"):
+def generate_sft_dataset(
+    config,
+    skip_too_long=True,
+    reference_text_col="reference_text",
+    translated_text_col="translated_text",
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -132,11 +164,18 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
 
     for suffix in ["", "_train"]:
         ground_truth_translation = pd.read_parquet(
-            os.path.join("output", experiment_hash, "data", f"ground_truth_translation{suffix}.parquet")
+            os.path.join(
+                "output",
+                experiment_hash,
+                "data",
+                f"ground_truth_translation{suffix}.parquet",
+            )
         )
 
         # Build the prompt
-        translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+        translation_prompt = get_translation_prompt(
+            config["experiment"]["experiment_params"]["translation_prompt"]
+        )
 
         n_skipped = 0
 
@@ -148,8 +187,13 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
 
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-                if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                    print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
+                if (
+                    reference_text_col != "reference_text"
+                    or translated_text_col != "translated_text"
+                ):
+                    print(
+                        "WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected."
+                    )
                 row_translation_prompt += "\n" + row["few_shot_examples"]
 
             l_inputs.append(
@@ -177,8 +221,19 @@ def generate_sft_dataset(config, skip_too_long=True, reference_text_col="referen
         print(f"Got {n_tokens} tokens for {path}")
 
 
-@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None, model_path_override=None, save_path_override=None, sampling_temperature_override=None):
+@ray.remote(
+    num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32
+)
+def generate_prompted_translation(
+    config,
+    skip_too_long=True,
+    reference_text_col="reference_text",
+    translated_text_col="translated_text",
+    translation_prompt_override=None,
+    model_path_override=None,
+    save_path_override=None,
+    sampling_temperature_override=None,
+):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
@@ -191,7 +246,9 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
     experiment_hash = compute_experiment_hash(config)
 
     ground_truth_translation = pd.read_parquet(
-        os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+        os.path.join(
+            "output", experiment_hash, "data", "ground_truth_translation.parquet"
+        )
     )
 
     # Build the prompt
@@ -210,8 +267,13 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
 
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-            if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
+            if (
+                reference_text_col != "reference_text"
+                or translated_text_col != "translated_text"
+            ):
+                print(
+                    "WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected."
+                )
 
             row_translation_prompt += "\n" + row["few_shot_examples"]
 
@@ -240,7 +302,9 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
 
     tokenizer = AutoTokenizer.from_pretrained(sampling_model)
 
-    if config["experiment"]["experiment_params"].get("use_sft_model_for_sampling", False):
+    if config["experiment"]["experiment_params"].get(
+        "use_sft_model_for_sampling", False
+    ):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for translation instead...")
 
@@ -252,12 +316,18 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.7,
-        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        rope_scaling={
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        },
         max_model_len=131072,
         tensor_parallel_size=2,
     )
 
-    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"][
+        "temperature"
+    ]
     if sampling_temperature_override is not None:
         if type(sampling_temperature_override) is str:
             temperature = float(sampling_temperature_override)
@@ -270,7 +340,9 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         n=config["experiment"]["experiment_params"]["sampling_params"]["n"],
     )
 
-    outputs = llm.chat([r["prompt"] for r in l_inputs], sampling_params=sampling_params, use_tqdm=True)
+    outputs = llm.chat(
+        [r["prompt"] for r in l_inputs], sampling_params=sampling_params, use_tqdm=True
+    )
 
     l_input_token_lens = [len(o.prompt_token_ids) for o in outputs]
     for i, output in enumerate(outputs):
@@ -278,7 +350,9 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
 
     # Compute logprobs on GT for perplexity calculations
     logprobs_sampling_params = SamplingParams(
-        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        temperature=config["experiment"]["experiment_params"]["sampling_params"][
+            "temperature"
+        ],
         max_tokens=1,
         logprobs=0,
         prompt_logprobs=1,
@@ -298,8 +372,13 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
         l_logprobs_prompts.append(prompt)
         l_start_end.append(get_assistant_turn_token_boundaries(prompt, tokenizer))
 
-    logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
-    gt_logprobs = [o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]] for i, o in enumerate(logprobs)]
+    logprobs = llm.chat(
+        l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True
+    )
+    gt_logprobs = [
+        o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]]
+        for i, o in enumerate(logprobs)
+    ]
     gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
     gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
     gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
@@ -310,7 +389,9 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
 
     df_output = pd.DataFrame(l_inputs)
 
-    save_path = os.path.join("output", experiment_hash, "data", "prompted_translation.parquet")
+    save_path = os.path.join(
+        "output", experiment_hash, "data", "prompted_translation.parquet"
+    )
     if save_path_override is not None:
         save_path = save_path_override.replace("__HASH__", experiment_hash)
 
@@ -320,9 +401,19 @@ def generate_prompted_translation(config, skip_too_long=True, reference_text_col
     kill_vllm_process(llm)
 
 
-
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def generate_openai_prompted_translation(config, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", translation_prompt_override=None, system_prompt_override=None, user_prompt_suffix_override=None, sampling_temperature_override=None, prompt_prefix_override=None, translation_extraction_tag=None):
+def generate_openai_prompted_translation(
+    config,
+    skip_too_long=True,
+    reference_text_col="reference_text",
+    translated_text_col="translated_text",
+    translation_prompt_override=None,
+    system_prompt_override=None,
+    user_prompt_suffix_override=None,
+    sampling_temperature_override=None,
+    prompt_prefix_override=None,
+    translation_extraction_tag=None,
+):
     from openai import AsyncOpenAI
     from asyncio import Semaphore
     import asyncio
@@ -341,7 +432,9 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
     experiment_hash = compute_experiment_hash(config)
 
     ground_truth_translation = pd.read_parquet(
-        os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+        os.path.join(
+            "output", experiment_hash, "data", "ground_truth_translation.parquet"
+        )
     )
 
     # Build the prompt
@@ -360,8 +453,13 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
 
         row_translation_prompt = translation_prompt
         if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-            if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                print("WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected.")
+            if (
+                reference_text_col != "reference_text"
+                or translated_text_col != "translated_text"
+            ):
+                print(
+                    "WARNING: reference_text_col or translated_text_col not default but asked for few shot examples. Please check your few shot examples are as expected."
+                )
 
             row_translation_prompt += "\n" + row["few_shot_examples"]
 
@@ -396,19 +494,29 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
     # Generate the outputs
     base_url = config["experiment"]["experiment_params"]["base_url"]
     model_name = config["experiment"]["experiment_params"]["model"]
-    temperature = config["experiment"]["experiment_params"]["sampling_params"]["temperature"]
+    temperature = config["experiment"]["experiment_params"]["sampling_params"][
+        "temperature"
+    ]
     if sampling_temperature_override is not None:
         if type(sampling_temperature_override) is str:
             temperature = float(sampling_temperature_override)
         else:
             temperature = sampling_temperature_override
 
-    api_key = os.environ['ANTHROPIC_API_KEY'] if 'claude' in model_name else os.environ["OPENAI_API_KEY"]
+    api_key = (
+        os.environ["ANTHROPIC_API_KEY"]
+        if "claude" in model_name
+        else os.environ["OPENAI_API_KEY"]
+    )
 
     d_additional_kwargs = {}
 
-    if config["experiment"]["experiment_params"].get("use_api_sft_model_for_sampling", False):
-        model_json_path = os.path.join("output", experiment_hash, "data", "sft_model_meta.json")
+    if config["experiment"]["experiment_params"].get(
+        "use_api_sft_model_for_sampling", False
+    ):
+        model_json_path = os.path.join(
+            "output", experiment_hash, "data", "sft_model_meta.json"
+        )
         with open(model_json_path, "r") as fp:
             d_model_json = json.load(fp)
         model_name = d_model_json["fine_tuned_model"]
@@ -418,11 +526,16 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
         api_key=api_key,
         base_url=base_url,
     )
- 
+
     rate_limit = Semaphore(100)
+
     async def run_chat(conversation):
         max_tokens = 12000
-        if model_name.startswith("claude-3-haiku") or model_name.startswith("claude-3-opus") or model_name.startswith("claude-3-5-haiku"):
+        if (
+            model_name.startswith("claude-3-haiku")
+            or model_name.startswith("claude-3-opus")
+            or model_name.startswith("claude-3-5-haiku")
+        ):
             max_tokens = 4096
         if model_name.startswith("claude-3-5-sonnet-20241022"):
             max_tokens = 8192
@@ -435,7 +548,7 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
                         messages=conversation,
                         temperature=temperature,
                         max_completion_tokens=max_tokens,
-                        **d_additional_kwargs
+                        **d_additional_kwargs,
                     )
 
                     ret = resp.choices[0].message.content
@@ -460,7 +573,11 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
 
     for i in range(len(l_responses)):
         if translation_extraction_tag is not None:
-            result = re.search(f"<{translation_extraction_tag}>(.*?)</{translation_extraction_tag}>", l_responses[i], re.DOTALL)
+            result = re.search(
+                f"<{translation_extraction_tag}>(.*?)</{translation_extraction_tag}>",
+                l_responses[i],
+                re.DOTALL,
+            )
             if result:
                 translation = result.group(1)
             else:
@@ -475,16 +592,30 @@ def generate_openai_prompted_translation(config, skip_too_long=True, reference_t
         l_inputs[i]["gt_logprob_tokens"] = ["a"]
 
     df_output = pd.DataFrame(l_inputs)
-    df_output.to_parquet(os.path.join("output", experiment_hash, "data", "prompted_translation.parquet"))
-
+    df_output.to_parquet(
+        os.path.join("output", experiment_hash, "data", "prompted_translation.parquet")
+    )
 
 
 @ray.remote(num_cpus=1, memory=32 * 1024 * 1024 * 1024)
-def compute_openai_validation_loss(config, validation_set_name=None, skip_too_long=True, reference_text_col="reference_text", translated_text_col="translated_text", validation_parquet_override=None, use_base_instruct_model=False, override_source_validation_data_template=None):
+def compute_openai_validation_loss(
+    config,
+    validation_set_name=None,
+    skip_too_long=True,
+    reference_text_col="reference_text",
+    translated_text_col="translated_text",
+    validation_parquet_override=None,
+    use_base_instruct_model=False,
+    override_source_validation_data_template=None,
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
-    from sft.sft_runner import get_valid_loss_for_openai_job, openai_sft_model, write_test_sft_data_for_extracting_validation_loss
+    from sft.sft_runner import (
+        get_valid_loss_for_openai_job,
+        openai_sft_model,
+        write_test_sft_data_for_extracting_validation_loss,
+    )
     from prompts import get_translation_prompt
 
     assert validation_set_name is not None
@@ -492,23 +623,35 @@ def compute_openai_validation_loss(config, validation_set_name=None, skip_too_lo
     experiment_hash = compute_experiment_hash(config)
 
     hash_dir = os.path.join("output", experiment_hash)
-    train_parquet_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_train.parquet")
-    train_json_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_train.jsonl")
-    valid_parquet_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_valid.parquet")
-    valid_json_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_valid.jsonl")
-    model_json_path = os.path.join(hash_dir, "data", f"validation_{validation_set_name}_meta.json")
+    train_parquet_path = os.path.join(
+        hash_dir, "data", f"validation_{validation_set_name}_train.parquet"
+    )
+    train_json_path = os.path.join(
+        hash_dir, "data", f"validation_{validation_set_name}_train.jsonl"
+    )
+    valid_parquet_path = os.path.join(
+        hash_dir, "data", f"validation_{validation_set_name}_valid.parquet"
+    )
+    valid_json_path = os.path.join(
+        hash_dir, "data", f"validation_{validation_set_name}_valid.jsonl"
+    )
+    model_json_path = os.path.join(
+        hash_dir, "data", f"validation_{validation_set_name}_meta.json"
+    )
 
     # Build the validation Parquet file from the reference GT file
     if not override_source_validation_data_template:
-        ground_truth_path = os.path.join("output", experiment_hash, "data", "ground_truth_translation.parquet")
+        ground_truth_path = os.path.join(
+            "output", experiment_hash, "data", "ground_truth_translation.parquet"
+        )
         if validation_parquet_override:
             ground_truth_path = validation_parquet_override
-        ground_truth_translation = pd.read_parquet(
-            ground_truth_path
-        )
+        ground_truth_translation = pd.read_parquet(ground_truth_path)
 
         # Build the prompt
-        translation_prompt = get_translation_prompt(config["experiment"]["experiment_params"]["translation_prompt"])
+        translation_prompt = get_translation_prompt(
+            config["experiment"]["experiment_params"]["translation_prompt"]
+        )
 
         n_skipped = 0
 
@@ -520,8 +663,13 @@ def compute_openai_validation_loss(config, validation_set_name=None, skip_too_lo
 
             row_translation_prompt = translation_prompt
             if config["experiment"]["experiment_params"].get("n_few_shot_examples", 0):
-                if reference_text_col != "reference_text" or translated_text_col != "translated_text":
-                    raise ValueError("reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented.")
+                if (
+                    reference_text_col != "reference_text"
+                    or translated_text_col != "translated_text"
+                ):
+                    raise ValueError(
+                        "reference_text_col or translated_text_col not default but asked for few shot examples. This is not yet implemented."
+                    )
 
                 row_translation_prompt += "\n" + row["few_shot_examples"]
 
@@ -534,10 +682,7 @@ def compute_openai_validation_loss(config, validation_set_name=None, skip_too_lo
                             "role": "user",
                             "content": f"Convert the following text, which has been encoded according to the provided scheme, back to English:\n\n{row[reference_text_col]}",
                         },
-                        {
-                            "role": "assistant",
-                            "content": row[translated_text_col]
-                        }
+                        {"role": "assistant", "content": row[translated_text_col]},
                     ],
                 }
             )
@@ -549,7 +694,11 @@ def compute_openai_validation_loss(config, validation_set_name=None, skip_too_lo
 
         print(f"Wrote {valid_parquet_path}")
     else:
-        override_source_validation_data_template = override_source_validation_data_template.replace("__HASH__", experiment_hash)
+        override_source_validation_data_template = (
+            override_source_validation_data_template.replace(
+                "__HASH__", experiment_hash
+            )
+        )
         valid_parquet_path = override_source_validation_data_template
 
     write_test_sft_data_for_extracting_validation_loss(train_parquet_path)
@@ -563,11 +712,22 @@ def compute_openai_validation_loss(config, validation_set_name=None, skip_too_lo
         model_override = d_ref_sft_model_meta["fine_tuned_model"]
 
     # Kick off hacked FT run
-    ray.get(openai_sft_model.remote(config, train_parquet_path, train_json_path, model_json_path, valid_parquet_path, valid_json_path, finetuning_parameters={
-        "batch_size": 10,
-        "learning_rate_multiplier": 0.0001,
-        "n_epochs": 1
-    }, model_override=model_override))
+    ray.get(
+        openai_sft_model.remote(
+            config,
+            train_parquet_path,
+            train_json_path,
+            model_json_path,
+            valid_parquet_path,
+            valid_json_path,
+            finetuning_parameters={
+                "batch_size": 10,
+                "learning_rate_multiplier": 0.0001,
+                "n_epochs": 1,
+            },
+            model_override=model_override,
+        )
+    )
 
     valid_loss = get_valid_loss_for_openai_job(model_json_path)
     with open(model_json_path, "r") as fp:

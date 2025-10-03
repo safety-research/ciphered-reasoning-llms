@@ -75,7 +75,7 @@ def first_token_of_each_word_model_tokenizer(s, model):
 
 
 client = AsyncOpenAI(
-    api_key=os.environ['ANTHROPIC_API_KEY'],
+    api_key=os.environ["ANTHROPIC_API_KEY"],
     base_url="https://api.anthropic.com/v1/",
 )
 
@@ -88,12 +88,9 @@ async def run_prompt(s, search_tag):
             async with rate_limit:
                 resp = await client.chat.completions.create(
                     model="claude-sonnet-4-20250514",
-                    messages=[{
-                        "role": "user",
-                        "content": s
-                    }],
+                    messages=[{"role": "user", "content": s}],
                     temperature=1.0,
-                    max_tokens=30000
+                    max_tokens=30000,
                 )
 
                 ret = resp.choices[0].message.content
@@ -101,7 +98,9 @@ async def run_prompt(s, search_tag):
                 print(s)
                 print(ret)
 
-                result = re.search(f"<{search_tag}>(.*?)</{search_tag}>", ret, re.DOTALL)
+                result = re.search(
+                    f"<{search_tag}>(.*?)</{search_tag}>", ret, re.DOTALL
+                )
                 if not result:
                     return "askdlfjlkadsjflajdklf", ret
                 result = result.group(1)
@@ -116,25 +115,39 @@ async def run_prompt(s, search_tag):
 
 
 async def remove_all_nouns(s):
-    return await run_prompt("""
+    return await run_prompt(
+        """
     Remove all nouns (including proper nouns) from the following text and output your translation in <translation> tags. Think step by step in <reasoning> tags before outputting your translation. Keep anything \\boxed{} as is.
-    """ + "\n" + f"<text>{s}</text>", "translation")
+    """
+        + "\n"
+        + f"<text>{s}</text>",
+        "translation",
+    )
 
 
 async def remove_all_verbs(s):
-    return await run_prompt("""
+    return await run_prompt(
+        """
     Remove all verbs from the following text and output your translation in <translation> tags. Think step by step in <reasoning> tags before outputting your translation. Keep anything \boxed{} as is.
-    """ + "\n" + f"<text>{s}</text>", "translation")
+    """
+        + "\n"
+        + f"<text>{s}</text>",
+        "translation",
+    )
 
 
 def calculate_remove_all_verbs_adherence(s):
     # max 20% of sentences have a verb to account for false positives
-    return count_num_verbs(s, ignore_sentence_if_found=["boxed", "draw"]) <= (count_num_sentences(s) / 5)
+    return count_num_verbs(s, ignore_sentence_if_found=["boxed", "draw"]) <= (
+        count_num_sentences(s) / 5
+    )
 
 
 def calculate_remove_all_nouns_adherence(s):
     # max 20% of sentences have a verb to account for false positives
-    return count_num_nouns(s, ignore_sentence_if_found=["boxed", "draw"]) <= (count_num_sentences(s) / 5)
+    return count_num_nouns(s, ignore_sentence_if_found=["boxed", "draw"]) <= (
+        count_num_sentences(s) / 5
+    )
 
 
 def calculate_zero_shot_adherence(s):

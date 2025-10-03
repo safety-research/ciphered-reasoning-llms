@@ -40,7 +40,9 @@ def extract_sections(text: str) -> List[Tuple[str, str]]:
 
 
 def get_designing_data_intensive_applications():
-    with open(os.path.join(os.path.dirname(__file__), "raw/DDIA_cleaned.txt"), "r") as f:
+    with open(
+        os.path.join(os.path.dirname(__file__), "raw/DDIA_cleaned.txt"), "r"
+    ) as f:
         text = f.read()
 
     sections = extract_sections(text)

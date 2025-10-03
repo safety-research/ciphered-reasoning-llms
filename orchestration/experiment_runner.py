@@ -7,7 +7,11 @@ from copy import deepcopy
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from orchestration.experiment_meta_saver import save_experiment_meta, init_experiment_meta_dict, compute_experiment_hash
+from orchestration.experiment_meta_saver import (
+    save_experiment_meta,
+    init_experiment_meta_dict,
+    compute_experiment_hash,
+)
 
 
 def load_config(config_file):
@@ -21,8 +25,13 @@ def load_config(config_file):
 
 def check_experiment_param_failure(config):
     d_experiment_params = config["experiment"]["experiment_params"]
-    if "sft_params" in d_experiment_params and not (d_experiment_params.get("use_sft_model_for_sampling", False) or d_experiment_params.get("use_api_sft_model_for_sampling", False)):
-        raise Exception(f"{config}\nConfig is using SFT but does not use SFT model for sampling!")
+    if "sft_params" in d_experiment_params and not (
+        d_experiment_params.get("use_sft_model_for_sampling", False)
+        or d_experiment_params.get("use_api_sft_model_for_sampling", False)
+    ):
+        raise Exception(
+            f"{config}\nConfig is using SFT but does not use SFT model for sampling!"
+        )
 
 
 def load_stage_executor(stage_config):
@@ -63,7 +72,7 @@ def build_loop_for_stage(stage):
         if param_len is None:
             param_len = len(param)
             continue
-        
+
         assert len(param) == param_len
 
     l_loop_for = []
@@ -71,7 +80,9 @@ def build_loop_for_stage(stage):
         template = deepcopy(d_template)
         for key in list(template.keys()):
             for param_name, param_values in params.items():
-                template[key] = template[key].replace(f"__{param_name}__", str(param_values[i]))
+                template[key] = template[key].replace(
+                    f"__{param_name}__", str(param_values[i])
+                )
 
         l_loop_for.append(template)
 
@@ -82,7 +93,13 @@ def build_loop_for_stage(stage):
 def load_experiment_steps(config):
     l_stages = []
 
-    l_stages.append({"executor": init_experiment_meta_dict, "kwargs": {}, "name": "init_experiment_meta_dict"})
+    l_stages.append(
+        {
+            "executor": init_experiment_meta_dict,
+            "kwargs": {},
+            "name": "init_experiment_meta_dict",
+        }
+    )
 
     for stage in config["stages"]:
         if "loop_for" in stage:
@@ -97,7 +114,9 @@ def load_experiment_steps(config):
             }
         )
 
-    l_stages.append({"executor": save_experiment_meta, "kwargs": {}, "name": "save_experiment_meta"})
+    l_stages.append(
+        {"executor": save_experiment_meta, "kwargs": {}, "name": "save_experiment_meta"}
+    )
 
     return l_stages
 
@@ -116,9 +135,11 @@ def execute_pipeline(config):
 
     if config.get("run_for_hash", None) is not None:
         if experiment_hash != config["run_for_hash"]:
-            print(f"run_for_hash enabled for {config['run_for_hash']}, skipping {experiment_hash}")
+            print(
+                f"run_for_hash enabled for {config['run_for_hash']}, skipping {experiment_hash}"
+            )
             return
-        
+
         ray.get(tag_run_for_hash_run.remote())
 
     print(f"Executing config \n {config}")
@@ -127,17 +148,27 @@ def execute_pipeline(config):
         if stage.get("depends_on", None) is not None:
             prev_stage_dep = stage["depends_on"]
 
-            if not os.path.exists(os.path.join(checkpoints_dir, prev_stage_dep)) and stage.get("skip_stages_without_dep", False):
-                print(f"Skipping {stage['name']} because dependency {prev_stage_dep} checkpoint was not found!")
+            if not os.path.exists(
+                os.path.join(checkpoints_dir, prev_stage_dep)
+            ) and stage.get("skip_stages_without_dep", False):
+                print(
+                    f"Skipping {stage['name']} because dependency {prev_stage_dep} checkpoint was not found!"
+                )
                 continue
 
         print(f"Running {stage['name']}")
 
         if os.path.exists(os.path.join(checkpoints_dir, stage["name"])):
-            if config["experiment"].get("force_overwrite", False) or stage.get("force_overwrite", False):
-                print(f"Force overwrite enabled. Overwriting {stage['name']}, hash {experiment_hash}")
+            if config["experiment"].get("force_overwrite", False) or stage.get(
+                "force_overwrite", False
+            ):
+                print(
+                    f"Force overwrite enabled. Overwriting {stage['name']}, hash {experiment_hash}"
+                )
             else:
-                print(f"Skipping {stage['name']} because there was already a checkpoint, hash {experiment_hash}.")
+                print(
+                    f"Skipping {stage['name']} because there was already a checkpoint, hash {experiment_hash}."
+                )
                 continue
 
         executor = stage["executor"]

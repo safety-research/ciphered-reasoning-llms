@@ -66,7 +66,17 @@ def pick_free_port() -> int:
 
 
 @ray.remote(num_cpus=1, num_gpus=8, memory=1024 * 1024 * 1024 * 512)
-def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=None, cpu_offload_override=None, micro_batch_size_override=None, sft_model_override=None, train_path_override=None, save_path_override=None):
+def sft_model(
+    config,
+    node_rank_override=None,
+    num_nodes_override=None,
+    coord=None,
+    cpu_offload_override=None,
+    micro_batch_size_override=None,
+    sft_model_override=None,
+    train_path_override=None,
+    save_path_override=None,
+):
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from sft.sft_runner import pick_free_port
 
@@ -85,7 +95,7 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
     num_nodes = 1
     master_addr = "127.0.0.1"
     master_port = pick_free_port()
-    
+
     if coord:
         node_rank = node_rank_override
         num_nodes = num_nodes_override
@@ -118,11 +128,21 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
     lr = config["experiment"]["experiment_params"]["sft_params"]["learning_rate"]
     clip_grad = config["experiment"]["experiment_params"]["sft_params"]["clip_grad"]
     num_epochs = config["experiment"]["experiment_params"]["sft_params"]["num_epochs"]
-    weight_decay = config["experiment"]["experiment_params"]["sft_params"]["weight_decay"]
-    do_shuffle = config["experiment"]["experiment_params"]["sft_params"].get("shuffle", True)
-    warmup_steps_ratio = config["experiment"]["experiment_params"]["sft_params"].get("warmup_steps_ratio", 0.1)
-    lr_schedule = config["experiment"]["experiment_params"]["sft_params"].get("lr_schedule", "cosine")
-    save_freq = config["experiment"]["experiment_params"]["sft_params"].get("save_freq", -1)
+    weight_decay = config["experiment"]["experiment_params"]["sft_params"][
+        "weight_decay"
+    ]
+    do_shuffle = config["experiment"]["experiment_params"]["sft_params"].get(
+        "shuffle", True
+    )
+    warmup_steps_ratio = config["experiment"]["experiment_params"]["sft_params"].get(
+        "warmup_steps_ratio", 0.1
+    )
+    lr_schedule = config["experiment"]["experiment_params"]["sft_params"].get(
+        "lr_schedule", "cosine"
+    )
+    save_freq = config["experiment"]["experiment_params"]["sft_params"].get(
+        "save_freq", -1
+    )
 
     save_path = os.path.join(hash_dir, "sft_model")
     if save_path_override is not None:
@@ -131,7 +151,9 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
     project_name = config["experiment"]["project_name"]
     experiment_name = config["experiment"]["experiment_name"]
 
-    dynamic_batch_size_steps = config["experiment"]["experiment_params"]["sft_params"].get("est_num_steps", None)
+    dynamic_batch_size_steps = config["experiment"]["experiment_params"][
+        "sft_params"
+    ].get("est_num_steps", None)
     if dynamic_batch_size_steps:
         df_train = pd.read_parquet(train_path)
         n_examples = len(df_train)
@@ -139,7 +161,7 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
         batch_size = n_examples / dynamic_batch_size_steps
         batch_size = int(batch_size / 4) * 4
 
-    dp_size = (4 * num_nodes)
+    dp_size = 4 * num_nodes
     micro_batch_size = max(1, batch_size // dp_size)
 
     global_max_micro_batch_sz = 16 if num_nodes == 1 else 32
@@ -202,7 +224,9 @@ def sft_model(config, node_rank_override=None, num_nodes_override=None, coord=No
 
 
 @ray.remote(num_cpus=1, num_gpus=8, memory=1024 * 1024 * 1024 * 512)
-def test_all_reduce_bandwidth(config, node_rank_override=None, num_nodes_override=None, coord=None):
+def test_all_reduce_bandwidth(
+    config, node_rank_override=None, num_nodes_override=None, coord=None
+):
     from sft.sft_runner import pick_free_port
 
     n_gpus = len(ray.get_gpu_ids())
@@ -211,7 +235,7 @@ def test_all_reduce_bandwidth(config, node_rank_override=None, num_nodes_overrid
     num_nodes = 1
     master_addr = "127.0.0.1"
     master_port = pick_free_port()
-    
+
     assert coord is not None
     node_rank = node_rank_override
     num_nodes = num_nodes_override
@@ -257,7 +281,13 @@ def test_all_reduce_bandwidth(config, node_rank_override=None, num_nodes_overrid
 
 
 @ray.remote(num_cpus=1)
-def multinode_sft_model(config, nnodes = None, detach_pg: bool = False, task_options = {}, do_test_all_reduce_bandwidth=False):
+def multinode_sft_model(
+    config,
+    nnodes=None,
+    detach_pg: bool = False,
+    task_options={},
+    do_test_all_reduce_bandwidth=False,
+):
     """
     Submit a single 16-GPU job (2 nodes × 8 GPUs). Safe to call multiple times
     concurrently; each call uses its own PG + coordinator.
@@ -270,9 +300,12 @@ def multinode_sft_model(config, nnodes = None, detach_pg: bool = False, task_opt
     assert nnodes is not None
 
     # Create a per-job placement group with two 8-GPU bundles, hard spread across nodes.
-    task_resources = task_options.get('resources', {})
+    task_resources = task_options.get("resources", {})
     pg = placement_group(
-        bundles=[{"GPU": 8, "CPU": 16, "memory": 512 * 1024 * 1024 * 1024, **task_resources} for _ in range(nnodes)],
+        bundles=[
+            {"GPU": 8, "CPU": 16, "memory": 512 * 1024 * 1024 * 1024, **task_resources}
+            for _ in range(nnodes)
+        ],
         strategy="STRICT_SPREAD",
         lifetime="detached" if detach_pg else None,
     )
@@ -302,7 +335,7 @@ def multinode_sft_model(config, nnodes = None, detach_pg: bool = False, task_opt
                     placement_group_bundle_index=i + 1,
                     placement_group_capture_child_tasks=False,
                 ),
-                **task_options
+                **task_options,
             ).remote(
                 config, node_rank_override=i + 1, num_nodes_override=nnodes, coord=coord
             )
@@ -311,8 +344,12 @@ def multinode_sft_model(config, nnodes = None, detach_pg: bool = False, task_opt
     ray.get(l_tasks)
 
 
-@ray.remote(num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32)
-def get_sft_validation_loss_from_vllm(config, model_path_override=None, save_path_override=None):
+@ray.remote(
+    num_cpus=1, num_gpus=2, retry_exceptions=True, memory=1024 * 1024 * 1024 * 32
+)
+def get_sft_validation_loss_from_vllm(
+    config, model_path_override=None, save_path_override=None
+):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
@@ -323,7 +360,9 @@ def get_sft_validation_loss_from_vllm(config, model_path_override=None, save_pat
 
     experiment_hash = compute_experiment_hash(config)
 
-    df_valid = pd.read_parquet(os.path.join("output", experiment_hash, "data", "sft.parquet"))
+    df_valid = pd.read_parquet(
+        os.path.join("output", experiment_hash, "data", "sft.parquet")
+    )
 
     # Generate the outputs
     sampling_model = config["experiment"]["experiment_params"]["model"]
@@ -332,7 +371,9 @@ def get_sft_validation_loss_from_vllm(config, model_path_override=None, save_pat
 
     tokenizer = AutoTokenizer.from_pretrained(sampling_model)
 
-    if config["experiment"]["experiment_params"].get("use_sft_model_for_sampling", False):
+    if config["experiment"]["experiment_params"].get(
+        "use_sft_model_for_sampling", False
+    ):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for generation instead...")
 
@@ -344,16 +385,22 @@ def get_sft_validation_loss_from_vllm(config, model_path_override=None, save_pat
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.7,
-        rope_scaling={"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 32768},
+        rope_scaling={
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        },
         max_model_len=131072,
         tensor_parallel_size=2,
         max_num_batched_tokens=8192,
-        max_num_seqs=32
+        max_num_seqs=32,
     )
 
     # Compute logprobs on GT for perplexity calculations
     logprobs_sampling_params = SamplingParams(
-        temperature=config["experiment"]["experiment_params"]["sampling_params"]["temperature"],
+        temperature=config["experiment"]["experiment_params"]["sampling_params"][
+            "temperature"
+        ],
         max_tokens=1,
         logprobs=0,
         prompt_logprobs=1,
@@ -361,20 +408,27 @@ def get_sft_validation_loss_from_vllm(config, model_path_override=None, save_pat
     )
     l_logprobs_prompts = []
     l_start_end = []
-    for prompt in df_valid['messages']:
+    for prompt in df_valid["messages"]:
         l_logprobs_prompts.append(list(prompt))
         l_start_end.append(get_assistant_turn_token_boundaries(prompt, tokenizer))
 
-    logprobs = llm.chat(l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True)
-    gt_logprobs = [o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]] for i, o in enumerate(logprobs)]
+    logprobs = llm.chat(
+        l_logprobs_prompts, sampling_params=logprobs_sampling_params, use_tqdm=True
+    )
+    gt_logprobs = [
+        o.prompt_logprobs[l_start_end[i][0] : l_start_end[i][1]]
+        for i, o in enumerate(logprobs)
+    ]
     gt_logprobs = [[next(iter(l.values())) for l in logprob] for logprob in gt_logprobs]
     gt_logprob_toks = [[l.decoded_token for l in logprob] for logprob in gt_logprobs]
     gt_logprobs = [[l.logprob for l in logprob] for logprob in gt_logprobs]
 
-    df_valid['gt_logprob_toks'] = gt_logprob_toks
-    df_valid['gt_logprobs'] = gt_logprobs
+    df_valid["gt_logprob_toks"] = gt_logprob_toks
+    df_valid["gt_logprobs"] = gt_logprobs
 
-    save_path = os.path.join("output", experiment_hash, "data", "valid_logprobs.parquet")
+    save_path = os.path.join(
+        "output", experiment_hash, "data", "valid_logprobs.parquet"
+    )
     if save_path_override is not None:
         save_path = save_path_override.replace("__HASH__", experiment_hash)
 
@@ -411,7 +465,16 @@ def together_retrieve_endpoint_information(endpointId):
 
 # TODO(sguo35): add validation set support, LR multiplier support
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
-def openai_sft_model(config, train_parquet_override=None, train_jsonl_override=None, meta_override=None, validation_parquet_template=None,  validation_json_template=None, finetuning_parameters={}, model_override=None):
+def openai_sft_model(
+    config,
+    train_parquet_override=None,
+    train_jsonl_override=None,
+    meta_override=None,
+    validation_parquet_template=None,
+    validation_json_template=None,
+    finetuning_parameters={},
+    model_override=None,
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
@@ -456,10 +519,16 @@ def openai_sft_model(config, train_parquet_override=None, train_jsonl_override=N
 
     validation_file_id = None
     if validation_parquet_template:
-        validation_parquet_template = validation_parquet_template.replace("__HASH__", experiment_hash)
-        validation_json_template = validation_json_template.replace("__HASH__", experiment_hash)
+        validation_parquet_template = validation_parquet_template.replace(
+            "__HASH__", experiment_hash
+        )
+        validation_json_template = validation_json_template.replace(
+            "__HASH__", experiment_hash
+        )
 
-        convert_sft_parquet_to_jsonl(validation_parquet_template, validation_json_template)
+        convert_sft_parquet_to_jsonl(
+            validation_parquet_template, validation_json_template
+        )
 
         print("[upload] Uploading validation file to OpenAI…")
         try:
@@ -481,12 +550,16 @@ def openai_sft_model(config, train_parquet_override=None, train_jsonl_override=N
             training_file=training_file_id,
             validation_file=validation_file_id,
             hyperparameters={
-                "n_epochs": config["experiment"]["experiment_params"].get("sft_params", {}).get("num_epochs", 1),
-                "batch_size": config["experiment"]["experiment_params"].get("sft_params", {}).get("batch_size", 64),
-                **finetuning_parameters
+                "n_epochs": config["experiment"]["experiment_params"]
+                .get("sft_params", {})
+                .get("num_epochs", 1),
+                "batch_size": config["experiment"]["experiment_params"]
+                .get("sft_params", {})
+                .get("batch_size", 64),
+                **finetuning_parameters,
             },
             seed=42,
-            suffix="jeff-encoding-schemes"
+            suffix="jeff-encoding-schemes",
         )
     except Exception as e:
         print(e)
@@ -516,7 +589,9 @@ def openai_sft_model(config, train_parquet_override=None, train_jsonl_override=N
                 seen_event_ids.add(ev.id)
                 ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ev.created_at))
                 # ev.data may contain useful details like metrics
-                info = ev.message or (ev.data.get("message") if isinstance(ev.data, dict) else None)
+                info = ev.message or (
+                    ev.data.get("message") if isinstance(ev.data, dict) else None
+                )
                 print(f"[event {ts}] {ev.level.upper()}: {info or ev.type}")
 
             if status in ("succeeded", "failed", "cancelled"):
@@ -544,14 +619,8 @@ def write_test_sft_data_for_extracting_validation_loss(path):
     l_data = [
         {
             "messages": [
-                {
-                    "content": "This is a test.",
-                    "role": "user"
-                },
-                {
-                    "content": "Hello world!",
-                    "role": "assistant"
-                }
+                {"content": "This is a test.", "role": "user"},
+                {"content": "Hello world!", "role": "assistant"},
             ]
         }
         for _ in range(10)
@@ -676,7 +745,7 @@ def upload_fireworks_dataset(config):
     experiment_hash = compute_experiment_hash(config)
     hash_dir = os.path.join("output", experiment_hash)
 
-    for suffix in ['', '_train']:
+    for suffix in ["", "_train"]:
         parquet_path = os.path.join(hash_dir, "data", f"sft{suffix}.parquet")
         output_json_path = os.path.join(hash_dir, "data", f"sft{suffix}.jsonl")
 
@@ -685,11 +754,18 @@ def upload_fireworks_dataset(config):
         dataset_name = f"{experiment_hash}{suffix}_jeff"
         dataset_name = dataset_name.replace("_", "-")
 
-        assert os.system(f"""
+        assert (
+            os.system(
+                f"""
         firectl create dataset
         {dataset_name}
         {output_json_path}
-        """.replace("\n", "")) == 0
+        """.replace(
+                    "\n", ""
+                )
+            )
+            == 0
+        )
 
 
 @ray.remote(num_cpus=1, memory=32 * 1024 * 1024 * 1024)
@@ -716,7 +792,9 @@ def finetune_model_on_fireworks(config):
     # TODO(sguo35): check if the model already exists or if we will overwrite if we train with the same model again?
 
     # TODO(sguo35): patch LR in here
-    assert os.system(f"""
+    assert (
+        os.system(
+            f"""
     firectl create sftj
     --base-model {base_model}
     --job-id {job_id}
@@ -731,7 +809,12 @@ def finetune_model_on_fireworks(config):
     --wandb-entity sguo35
     --wandb-api-key {os.environ['WANDB_API_KEY']}
     --wandb-project {project_name}
-    """.replace("\n", "")) == 0
+    """.replace(
+                "\n", ""
+            )
+        )
+        == 0
+    )
 
     # TODO(sguo35): wait for the model to finish training here
 
@@ -739,57 +822,73 @@ def finetune_model_on_fireworks(config):
 
 
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 32)
-def together_sft_model(config, train_parquet_override=None, train_jsonl_override=None, meta_override=None, 
-                      validation_parquet_template=None, validation_json_template=None, 
-                      finetuning_parameters={}, model_override=None):
+def together_sft_model(
+    config,
+    train_parquet_override=None,
+    train_jsonl_override=None,
+    meta_override=None,
+    validation_parquet_template=None,
+    validation_json_template=None,
+    finetuning_parameters={},
+    model_override=None,
+):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-    
+
     from orchestration.experiment_meta_saver import compute_experiment_hash
-    from sft.sft_runner import convert_sft_parquet_to_jsonl, together_retrieve_endpoint_information
-    
+    from sft.sft_runner import (
+        convert_sft_parquet_to_jsonl,
+        together_retrieve_endpoint_information,
+    )
+
     experiment_name = config["experiment"]["experiment_name"]
     experiment_hash = compute_experiment_hash(config)
     hash_dir = os.path.join("output", experiment_hash)
-    
+
     model_name = config["experiment"]["experiment_params"]["model"]
     if model_override:
         model_name = model_override
-    
+
     parquet_path = os.path.join(hash_dir, "data", "sft_train.parquet")
     output_json_path = os.path.join(hash_dir, "data", "sft_train.jsonl")
     model_json_path = os.path.join(hash_dir, "data", "sft_model_meta.json")
-    
+
     if train_parquet_override:
         parquet_path = train_parquet_override
     if train_jsonl_override:
         output_json_path = train_jsonl_override
     if meta_override:
         model_json_path = meta_override
-    
+
     poll_interval_seconds = 5
-    
+
     convert_sft_parquet_to_jsonl(parquet_path, output_json_path)
-    
+
     # Initialize Together client
     api_key = os.environ.get("TOGETHER_API_KEY")
     if not api_key:
         raise ValueError("TOGETHER_API_KEY environment variable not set")
-    
+
     client = Together(api_key=api_key)
-    
+
     # # Upload training file
     print("[upload] Uploading training file to Together AI…")
     training_file = client.files.upload(file=output_json_path)
     training_file_id = training_file.id
     print(f"[upload] File uploaded with id: {training_file_id}")
-    
+
     validation_file_id = None
     if validation_parquet_template:
-        validation_parquet_template = validation_parquet_template.replace("__HASH__", experiment_hash)
-        validation_json_template = validation_json_template.replace("__HASH__", experiment_hash)
-        
-        convert_sft_parquet_to_jsonl(validation_parquet_template, validation_json_template)
-        
+        validation_parquet_template = validation_parquet_template.replace(
+            "__HASH__", experiment_hash
+        )
+        validation_json_template = validation_json_template.replace(
+            "__HASH__", experiment_hash
+        )
+
+        convert_sft_parquet_to_jsonl(
+            validation_parquet_template, validation_json_template
+        )
+
         print("[upload] Uploading validation file to Together AI…")
         try:
             validation_file = client.files.upload(file=validation_json_template)
@@ -800,15 +899,19 @@ def together_sft_model(config, train_parquet_override=None, train_jsonl_override
                 print("!!!!!!!!!")
             raise e
         print(f"[upload] File uploaded with id: {validation_file_id}")
-    
+
     # Prepare hyperparameters
     hyperparameters = {
-        "n_epochs": config["experiment"]["experiment_params"].get("sft_params", {}).get("num_epochs", 1),
-        "learning_rate": config["experiment"]["experiment_params"].get("sft_params", {}).get("learning_rate", 2e-5),
+        "n_epochs": config["experiment"]["experiment_params"]
+        .get("sft_params", {})
+        .get("num_epochs", 1),
+        "learning_rate": config["experiment"]["experiment_params"]
+        .get("sft_params", {})
+        .get("learning_rate", 2e-5),
         **finetuning_parameters,
-        **config["experiment"]["experiment_params"].get("sft_params", {})
+        **config["experiment"]["experiment_params"].get("sft_params", {}),
     }
-    
+
     # Create fine-tuning job
     print(f"[job] Creating fine-tuning job for base model: {model_name}")
     try:
@@ -818,16 +921,16 @@ def together_sft_model(config, train_parquet_override=None, train_jsonl_override
             "suffix": f"jeff-encoding-schemes-{experiment_hash[:8]}",
             "wandb_api_key": os.environ.get("WANDB_API_KEY", ""),
             "lora": False,
-            **hyperparameters
+            **hyperparameters,
         }
-        
+
         if validation_file_id:
             job_params["validation_file"] = validation_file_id
-            
+
         # Add any additional hyperparameters from finetuning_parameters
         for key, value in finetuning_parameters.items():
             job_params[key] = value
-        
+
         job = client.fine_tuning.create(**job_params)
         job_id = job.id
     except Exception as e:
@@ -835,8 +938,10 @@ def together_sft_model(config, train_parquet_override=None, train_jsonl_override
         for _ in range(10):
             print("!!!!!!!!!")
         raise e
-    print(f"[job] Job created: {job_id} (status: {job.status if hasattr(job, 'status') else 'submitted'})")
-    
+    print(
+        f"[job] Job created: {job_id} (status: {job.status if hasattr(job, 'status') else 'submitted'})"
+    )
+
     # Poll for status
     last_status = None
     seen_events = set()
@@ -845,14 +950,14 @@ def together_sft_model(config, train_parquet_override=None, train_jsonl_override
         try:
             # Retrieve job status
             job = client.fine_tuning.retrieve(id=job_id)
-            status = job.status if hasattr(job, 'status') else 'unknown'
-            
+            status = job.status if hasattr(job, "status") else "unknown"
+
             if status != last_status:
                 print(f"[status] {status}")
                 last_status = status
-            
+
             # Check for events/logs if available
-            if hasattr(job, 'events') and job.events:
+            if hasattr(job, "events") and job.events:
                 for event in job.events:
                     event_id = f"{event.created_at}_{event.message}"
                     if event_id not in seen_events:
@@ -861,22 +966,22 @@ def together_sft_model(config, train_parquet_override=None, train_jsonl_override
                         level = event.level
                         message = event.message
                         print(f"[event {ts}] {level}: {message}")
-            
+
             # Check if job is complete
             if status in ("succeeded", "completed", "failed", "cancelled"):
                 break
-                
+
             time.sleep(poll_interval_seconds)
         except Exception as e:
             print(f"Error checking job status: {e}")
             time.sleep(poll_interval_seconds)
-    
+
     # Handle final result
     if status not in ("succeeded", "completed"):
         raise RuntimeError(f"Fine-tuning did not succeed: status={status}")
 
     fine_tuned_model = job.output_name
-    
+
     result = {"fine_tuned_model": fine_tuned_model, "job_id": job_id}
     with open(model_json_path, "w", encoding="utf-8") as out_f:
         json.dump(result, out_f, indent=2)
@@ -891,15 +996,15 @@ def get_valid_loss_for_together_job(
     """
     Read a fine-tuning job_id from a JSON file and return the validation loss
     from the Together AI fine-tuning job.
-    
+
     Args:
         json_path: Path to a JSON file containing at least {"job_id": "..."}.
         client: Optionally pass a pre-configured Together client.
-    
+
     Returns:
         The validation loss (float) from the fine-tuning job,
         or None if no validation metrics are available.
-    
+
     Raises:
         FileNotFoundError: If `json_path` does not exist.
         ValueError: If `job_id` is missing or invalid.
@@ -908,28 +1013,28 @@ def get_valid_loss_for_together_job(
     api_key = os.environ.get("TOGETHER_API_KEY")
     if not api_key and not client:
         raise ValueError("TOGETHER_API_KEY environment variable not set")
-    
+
     client = client or Together(api_key=api_key)
-    
+
     # Load job_id
     p = Path(json_path)
     if not p.exists():
         raise FileNotFoundError(f"JSON file not found: {p}")
     with p.open("r", encoding="utf-8") as f:
         payload: dict[str, Any] = json.load(f)
-    
+
     job_id = payload.job_id
     if not isinstance(job_id, str) or not job_id.strip():
         raise ValueError("JSON must contain a non-empty string field 'job_id'.")
-    
+
     # Retrieve job details
     job = client.fine_tuning.retrieve(id=job_id)
-    
+
     # Extract validation loss if available
     validation_loss = None
-    
+
     # Check various possible locations for validation metrics
-    if hasattr(job, 'training_metrics'):
+    if hasattr(job, "training_metrics"):
         metrics = job.training_metrics
         if isinstance(metrics, dict):
             validation_loss = metrics.eval_loss or metrics.validation_loss
@@ -938,49 +1043,51 @@ def get_valid_loss_for_together_job(
             last_metrics = metrics[-1]
             if isinstance(last_metrics, dict):
                 validation_loss = last_metrics.eval_loss or last_metrics.validation_loss
-    
-    if hasattr(job, 'eval_loss'):
+
+    if hasattr(job, "eval_loss"):
         validation_loss = job.eval_loss
-    elif hasattr(job, 'validation_loss'):
+    elif hasattr(job, "validation_loss"):
         validation_loss = job.validation_loss
-    
+
     if validation_loss is not None:
         print(f"job id={job_id} validation_loss={validation_loss}")
         for _ in range(10):
             print("!!!!!!")
-    
+
     return validation_loss
 
 
 @ray.remote(num_cpus=1, memory=1024 * 1024 * 1024 * 16)
-def deploy_together_model(config, model_id_override=None, deployment_name_override=None):
+def deploy_together_model(
+    config, model_id_override=None, deployment_name_override=None
+):
     """
     Deploy a fine-tuned model on Together AI with auto-timeout and test it.
-    
+
     Args:
         config: Experiment configuration
         model_id_override: Optional model ID to deploy instead of reading from meta file
         deployment_name_override: Optional deployment name override
     """
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-    
+
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from sft.sft_runner import together_retrieve_endpoint_information
-    
+
     experiment_hash = compute_experiment_hash(config)
     hash_dir = os.path.join("output", experiment_hash)
     data_dir = os.path.join(hash_dir, "data")
-    
+
     # Ensure data directory exists
     os.makedirs(data_dir, exist_ok=True)
-    
+
     # Get API key
     api_key = os.environ.get("TOGETHER_API_KEY")
     if not api_key:
         raise ValueError("TOGETHER_API_KEY environment variable not set")
-    
+
     client = Together(api_key=api_key)
-    
+
     # Get model ID from meta file or override
     if model_id_override:
         model_id = model_id_override
@@ -988,18 +1095,20 @@ def deploy_together_model(config, model_id_override=None, deployment_name_overri
         model_meta_path = os.path.join(data_dir, "sft_model_meta.json")
         if not os.path.exists(model_meta_path):
             raise FileNotFoundError(f"Model meta file not found: {model_meta_path}")
-        
+
         with open(model_meta_path, "r") as f:
             meta = json.load(f)
         model_id = meta.get("fine_tuned_model")
         if not model_id:
             raise ValueError("No fine_tuned_model found in meta file")
-    
+
     print(f"[deploy] Deploying model: {model_id}")
-    
+
     # Create deployment name
-    deployment_name = deployment_name_override or f"deploy-{experiment_hash[:8]}-{int(time.time())}"
-    
+    deployment_name = (
+        deployment_name_override or f"deploy-{experiment_hash[:8]}-{int(time.time())}"
+    )
+
     # Start deployment with 2 min auto timeout on single H100
     try:
         deployment_params = {
@@ -1009,20 +1118,20 @@ def deploy_together_model(config, model_id_override=None, deployment_name_overri
             "max_replicas": 1,
             "inactive_timeout": 2,
             "disable_prompt_cache": False,
-            "disable_speculative_decoding": True
+            "disable_speculative_decoding": True,
         }
-        
+
         print(f"[deploy] Creating deployment: {deployment_name}")
         deployment = client.endpoints.create(**deployment_params)
         deployment_id = deployment.id
         deployment_model_path = deployment.name
-        
+
     except Exception as e:
         print(f"[deploy] Error creating deployment: {e}")
         raise e
-    
+
     print(f"[deploy] Deployment created: {deployment_id}")
-    
+
     # Write deployment info to JSON
     deployment_info_path = os.path.join(data_dir, "deployment_info.json")
     deployment_info = {
@@ -1031,70 +1140,70 @@ def deploy_together_model(config, model_id_override=None, deployment_name_overri
         "deployment_model_path": deployment_model_path,
         "model_id": model_id,
         "created_at": time.time(),
-        "inactive_timeout": 20
+        "inactive_timeout": 20,
     }
-    
+
     with open(deployment_info_path, "w") as f:
         json.dump(deployment_info, f, indent=2)
     print(f"[deploy] Wrote deployment info to {deployment_info_path}")
-    
+
     # Wait for deployment to be ready
     print("[deploy] Waiting for deployment to be ready...")
     max_wait_time = 900
     start_time = time.time()
-    
+
     while time.time() - start_time < max_wait_time:
         try:
             # Check deployment status
             deployment = together_retrieve_endpoint_information(deployment_id)
             status = deployment["state"]
-            
-            if status == 'STARTED':
+
+            if status == "STARTED":
                 print(f"[deploy] Deployment is ready (status: {status})")
                 break
             elif status in ["STOPPED", "ERROR", "STOPPING"]:
                 raise RuntimeError(f"Deployment failed with status: {status}")
-            
+
             print(f"[deploy] Current status: {status}, waiting...")
             time.sleep(5)
-            
+
         except Exception as e:
             print(f"[deploy] Error checking deployment status: {e}")
             time.sleep(5)
     else:
-        raise TimeoutError(f"Deployment did not become ready within {max_wait_time} seconds")
-    
+        raise TimeoutError(
+            f"Deployment did not become ready within {max_wait_time} seconds"
+        )
+
     # Test the deployment with "Hello world"
     print("[test] Testing deployment with 'Hello world' prompt...")
     try:
         response = client.chat.completions.create(
             model=deployment_model_path,
-            messages=[
-                {"role": "user", "content": "Hello world"}
-            ],
+            messages=[{"role": "user", "content": "Hello world"}],
             max_tokens=50,
-            temperature=0.7
+            temperature=0.7,
         )
-        
-        if hasattr(response, 'choices') and response.choices:
+
+        if hasattr(response, "choices") and response.choices:
             test_response = response.choices[0].message.content
             print(f"[test] Response: {test_response}")
         else:
             print("[test] No response received")
             test_response = None
-            
+
         # Save test result
         test_result = {
             "prompt": "Hello world",
             "response": test_response,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
-        
+
         test_result_path = os.path.join(data_dir, "deployment_test_result.json")
         with open(test_result_path, "w") as f:
             json.dump(test_result, f, indent=2)
         print(f"[test] Saved test result to {test_result_path}")
-        
+
     except Exception as e:
         print(f"[test] Error testing deployment: {e}")
         # Continue to shutdown even if test fails
@@ -1103,10 +1212,10 @@ def deploy_together_model(config, model_id_override=None, deployment_name_overri
 @ray.remote(num_cpus=1, retry_exceptions=True, memory=4 * 1024 * 1024 * 1024)
 def shutdown_together_deployment(config):
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-    
+
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from sft.sft_runner import together_retrieve_endpoint_information
-    
+
     experiment_hash = compute_experiment_hash(config)
     hash_dir = os.path.join("output", experiment_hash)
     data_dir = os.path.join(hash_dir, "data")
@@ -1120,7 +1229,7 @@ def shutdown_together_deployment(config):
     api_key = os.environ.get("TOGETHER_API_KEY")
     if not api_key:
         raise ValueError("TOGETHER_API_KEY environment variable not set")
-    
+
     client = Together(api_key=api_key)
 
     # Shutdown deployment
@@ -1130,6 +1239,5 @@ def shutdown_together_deployment(config):
         print(f"[shutdown] Deployment {deployment_id} shutdown initiated")
     except Exception as e:
         raise RuntimeError(f"[shutdown] Error shutting down deployment: {e}")
-    
-    print("[complete] Deployment lifecycle completed")
 
+    print("[complete] Deployment lifecycle completed")
