@@ -1,4 +1,4 @@
-# All Code, No Thought: Language Models Struggle to Reason in Ciphered Language
+# All Code, No Thought: Current Language Models Struggle to Reason in Ciphered Language
 
 This repo contains the code used to run all experiments for the [paper](https://cipheredreasoning.app/).
 
