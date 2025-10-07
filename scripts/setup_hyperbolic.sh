@@ -144,3 +144,10 @@ fi
 # 8. EXPORTS
 # 9. ulimit
 # 10. cd encoding schemes
+
+# block ports 
+# sudo iptables -A INPUT -d 147.185.41.238 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+# sudo iptables -A INPUT -d 147.185.41.238  -p tcp -m tcp --dport 443 -j ACCEPT
+# sudo iptables -A INPUT -d 147.185.41.238  -p tcp -m tcp --dport 80 -j ACCEPT
+# sudo iptables -A INPUT -d 147.185.41.238  -p tcp -m tcp --dport 22 -j ACCEPT
+# sudo iptables -A INPUT -d 147.185.41.238  -j DROP
