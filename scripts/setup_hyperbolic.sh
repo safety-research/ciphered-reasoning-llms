@@ -146,8 +146,16 @@ fi
 # 10. cd encoding schemes
 
 # block ports 
-# sudo iptables -A INPUT -d 147.185.41.238 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-# sudo iptables -A INPUT -d 147.185.41.238  -p tcp -m tcp --dport 443 -j ACCEPT
-# sudo iptables -A INPUT -d 147.185.41.238  -p tcp -m tcp --dport 80 -j ACCEPT
-# sudo iptables -A INPUT -d 147.185.41.238  -p tcp -m tcp --dport 22 -j ACCEPT
-# sudo iptables -A INPUT -d 147.185.41.238  -j DROP
+# Reset INPUT (doesn’t touch FORWARD/OUTPUT)
+# sudo iptables -F INPUT
+# sudo iptables -P INPUT DROP
+
+# # Essentials
+# sudo iptables -A INPUT -i lo -j ACCEPT
+# sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# # Allow LAN (all ports) — optional, keep if you want wide-open from 10.15/16
+# sudo iptables -A INPUT -s 10.15.0.0/16 -j ACCEPT
+
+# # Allow SSH/HTTP/HTTPS to all local IPs
+# sudo iptables -A INPUT -p tcp -m multiport --dports 22,80,443 -j ACCEPT
