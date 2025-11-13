@@ -61,8 +61,10 @@ def first_token_string(text: str, tokenizer: AutoTokenizer) -> str | None:
 
 
 def first_token_of_each_word_model_tokenizer(s, model):
+    from utils.tokenizer_utils import get_tokenizer
+
     if model not in d_tokenizer_cache:
-        d_tokenizer_cache[model] = AutoTokenizer.from_pretrained(model)
+        d_tokenizer_cache[model] = get_tokenizer(model)
 
     tokenizer = d_tokenizer_cache[model]
 

@@ -250,6 +250,7 @@ def generate_prompted_translation(
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts import get_translation_prompt
     from utils.vllm import kill_vllm_process, get_assistant_turn_token_boundaries
+    from utils.tokenizer_utils import get_tokenizer
 
     experiment_hash = compute_experiment_hash(config)
 
@@ -293,10 +294,9 @@ def generate_prompted_translation(
     # Generate the outputs
 
     sampling_model = config["experiment"]["experiment_params"]["model"]
-    assert "Qwen" in sampling_model, "RoPE scaling for Llama not yet implemented"
     model_size = int(re.search("([0-9]+)B", sampling_model).group(1))
 
-    tokenizer = AutoTokenizer.from_pretrained(sampling_model)
+    tokenizer = get_tokenizer(sampling_model)
 
     if config["experiment"]["experiment_params"].get(
         "use_sft_model_for_sampling", False
@@ -309,17 +309,21 @@ def generate_prompted_translation(
         print(f"Using model path override {sampling_model}")
 
     n_gpus = len(ray.get_gpu_ids())
+
+    extra_kwargs = {}
+    if "Qwen" in sampling_model:
+        extra_kwargs['rope_scaling'] = {
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        }
     llm = LLM(
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={
-            "rope_type": "yarn",
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-        },
         max_model_len=131072,
         tensor_parallel_size=n_gpus,
+        **extra_kwargs
     )
 
     num_samples = config["experiment"]["experiment_params"]["sampling_params"]["n"]
@@ -879,17 +883,20 @@ def judge_math_solving_content(config):
     df_sft = pd.read_parquet(sft_ref_path)
 
     # Ask LLM for inference
+    extra_kwargs = {}
+    if "Qwen" in sampling_model:
+        extra_kwargs['rope_scaling'] = {
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        }
     llm = LLM(
         model="Qwen/Qwen3-32B-FP8",
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={
-            "rope_type": "yarn",
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-        },
         max_model_len=131072,
         tensor_parallel_size=2,
+        **extra_kwargs
     )
 
     l_judge_prompts = []
@@ -947,6 +954,7 @@ def generate_together_prompted_translation(config):
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts import get_translation_prompt
+    from utils.tokenizer_utils import get_tokenizer
 
     experiment_hash = compute_experiment_hash(config)
     data_dir = os.path.join("output", experiment_hash, "data")
@@ -974,7 +982,7 @@ def generate_together_prompted_translation(config):
     # Load tokenizer for the model
     base_model_name = config["experiment"]["experiment_params"]["model"]
     print(f"Loading tokenizer for model: {base_model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    tokenizer = get_tokenizer(base_model_name)
 
     ground_truth_translation = pd.read_parquet(
         os.path.join(data_dir, "ground_truth_translation.parquet")

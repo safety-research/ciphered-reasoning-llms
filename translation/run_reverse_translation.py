@@ -242,6 +242,7 @@ def generate_prompted_translation(
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from prompts import get_translation_prompt
     from utils.vllm import kill_vllm_process, get_assistant_turn_token_boundaries
+    from utils.tokenizer_utils import get_tokenizer
 
     experiment_hash = compute_experiment_hash(config)
 
@@ -297,10 +298,9 @@ def generate_prompted_translation(
     # Generate the outputs
 
     sampling_model = config["experiment"]["experiment_params"]["model"]
-    assert "Qwen" in sampling_model, "RoPE scaling for Llama not yet implemented"
     model_size = int(re.search("([0-9]+)B", sampling_model).group(1))
 
-    tokenizer = AutoTokenizer.from_pretrained(sampling_model)
+    tokenizer = get_tokenizer(sampling_model)
 
     if config["experiment"]["experiment_params"].get(
         "use_sft_model_for_sampling", False
@@ -312,17 +312,21 @@ def generate_prompted_translation(
         sampling_model = model_path_override.replace("__HASH__", experiment_hash)
         print(f"Using model path override {sampling_model}")
 
+
+    extra_kwargs = {}
+    if "Qwen" in sampling_model:
+        extra_kwargs['rope_scaling'] = {
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        }
     llm = LLM(
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.7,
-        rope_scaling={
-            "rope_type": "yarn",
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-        },
         max_model_len=131072,
         tensor_parallel_size=2,
+        **extra_kwargs
     )
 
     temperature = config["experiment"]["experiment_params"]["sampling_params"][

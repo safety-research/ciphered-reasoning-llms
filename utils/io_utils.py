@@ -89,6 +89,7 @@ def write_token_count(config):
 
     from orchestration.experiment_meta_saver import compute_experiment_hash
     from utils.io_utils import read_large_parquet
+    from utils.tokenizer_utils import get_tokenizer
 
     from transformers import AutoTokenizer
 
@@ -99,7 +100,7 @@ def write_token_count(config):
         )
         model = "openai/gpt-oss-120b"
 
-    tokenizer = AutoTokenizer.from_pretrained(model)
+    tokenizer = get_tokenizer(model)
 
     experiment_hash = compute_experiment_hash(config)
 

@@ -275,7 +275,6 @@ def generate_prompted_translation(config):
     # Generate the outputs
 
     sampling_model = config["experiment"]["experiment_params"]["model"]
-    assert "Qwen" in sampling_model, "RoPE scaling for Llama not yet implemented"
     model_size = int(re.search("([0-9]+)B", sampling_model).group(1))
 
     if config["experiment"]["experiment_params"].get(
@@ -284,17 +283,21 @@ def generate_prompted_translation(config):
         sampling_model = f"output/{experiment_hash}/sft_model/last"
         print(f"Using SFT model {sampling_model} for generation instead...")
 
+    extra_kwargs = {}
+    if "Qwen" in sampling_model:
+        extra_kwargs['rope_scaling'] = {
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        }
+
     llm = LLM(
         model=sampling_model,
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={
-            "rope_type": "yarn",
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-        },
         max_model_len=131072,
         tensor_parallel_size=2,
+        **extra_kwargs
     )
     sampling_params = SamplingParams(
         temperature=config["experiment"]["experiment_params"]["sampling_params"][
@@ -368,18 +371,22 @@ def judge_cot_style_adherence(config):
     sft_ref_path = os.path.join("output", experiment_hash, "data", "sft.parquet")
     df_sft = pd.read_parquet(sft_ref_path)
 
+    extra_kwargs = {}
+    if "Qwen" in sampling_model:
+        extra_kwargs['rope_scaling'] = {
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        }
+
     # Ask LLM for inference
     llm = LLM(
         model="Qwen/Qwen3-32B-FP8",
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={
-            "rope_type": "yarn",
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-        },
         max_model_len=131072,
         tensor_parallel_size=2,
+        **extra_kwargs
     )
 
     translation_prompt_type = config["experiment"]["experiment_params"][
@@ -470,18 +477,22 @@ def judge_cot_encoding_English_coherence(config):
         for responses in df["response"]
     ]
 
+    extra_kwargs = {}
+    if "Qwen" in sampling_model:
+        extra_kwargs['rope_scaling'] = {
+            "rope_type": "yarn",
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+        }
+
     # Ask LLM for inference
     llm = LLM(
         model="Qwen/Qwen3-32B-FP8",
         enforce_eager=True,
         gpu_memory_utilization=0.8,
-        rope_scaling={
-            "rope_type": "yarn",
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-        },
         max_model_len=131072,
         tensor_parallel_size=2,
+        **extra_kwargs
     )
 
     l_judge_prompts = []
