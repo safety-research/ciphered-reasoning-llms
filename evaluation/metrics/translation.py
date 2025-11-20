@@ -36,7 +36,7 @@ def evaluate_bleu_score(
         ):
             l_sample_bleus.append(
                 bleu.compute(
-                    predictions=[row["model_translations"][n]],
+                    predictions=[str(row["model_translations"][n])],
                     references=[row["gt_translation"]],
                 )["score"]
             )

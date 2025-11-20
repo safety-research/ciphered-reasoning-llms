@@ -359,6 +359,8 @@ def get_sft_validation_loss_from_vllm(
     from utils.vllm import kill_vllm_process, get_assistant_turn_token_boundaries
     from utils.tokenizer_utils import get_tokenizer
 
+    os.environ['VLLM_USE_FLASHINFER_SAMPLER'] = '0'
+
     experiment_hash = compute_experiment_hash(config)
 
     df_valid = pd.read_parquet(

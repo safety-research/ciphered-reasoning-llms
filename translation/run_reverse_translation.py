@@ -244,6 +244,8 @@ def generate_prompted_translation(
     from utils.vllm import kill_vllm_process, get_assistant_turn_token_boundaries
     from utils.tokenizer_utils import get_tokenizer
 
+    os.environ['VLLM_USE_FLASHINFER_SAMPLER'] = '0'
+
     experiment_hash = compute_experiment_hash(config)
 
     ground_truth_translation = pd.read_parquet(
@@ -514,6 +516,10 @@ def generate_openai_prompted_translation(
     )
 
     d_additional_kwargs = {}
+    if "claude-sonnet-4" in model_name:
+        d_additional_kwargs['extra_headers'] = {
+            "anthropic-beta": "context-1m-2025-08-07"
+        }
 
     if config["experiment"]["experiment_params"].get(
         "use_api_sft_model_for_sampling", False

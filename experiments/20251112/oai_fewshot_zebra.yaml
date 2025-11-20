@@ -2,34 +2,27 @@ experiment:
   table_name: encoding_schemes
 
   project_name: encoding_schemes
-  experiment_name: math_othermodels_${encoding_scheme}_${model_id}
+  experiment_name: zebra_fewshot_${encoding_scheme}_${model_id}
 
   experiment_params:
     model: ${model_id}
     encoding_scheme: ${encoding_scheme}
 
-    dataset: numina_math_cot_16000
+    dataset: zebra_bench_raw
     validation_set_frac: 0.05
 
     sampling_params:
-      temperature: 0.5
-      n: 4
+      temperature: 1.0
+      n: 1
 
-    sft_params:
-      batch_size: 192
-      learning_rate: ${learning_rate}
-      clip_grad: 1.0
-      num_epochs: 1
-      weight_decay: 0.0
-      # preshuffled to maintain iid
-      shuffle: False
+    base_url: https://api.openai.com/v1/
 
     translation_prompt: ${encoding_scheme}
-    
-    use_sft_model_for_sampling: True
+
+    n_few_shot_examples: 8
 
   experiment_tags:
-    other_models_rebuttal: True
+    zebra_bench: True
 
 stages:
   - name: generate_ground_truth_translation_cot
@@ -37,6 +30,15 @@ stages:
       path: speaking/encoded_cot_runner.py
       function_name: generate_ground_truth_translation
       function_kwargs: {}
+    force_overwrite: False
+
+  - name: generate_fewshot_prompt_placeholder_for_sft
+    executor:
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_fewshot_prompt
+      function_kwargs: {}
+    force_overwrite: False
+    
 
   - name: generate_sft_dataset_forward_translation
     executor:
@@ -46,6 +48,8 @@ stages:
         skip_too_long: False
         reference_text_col: reference_solution
         translated_text_col: raw_translated_cot
+    force_overwrite: False
+    
 
   - name: copy_forward_translation
     executor:
@@ -54,6 +58,9 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft_train.parquet
         to_template: output/__HASH__/data/sft_translation_train.parquet
+
+    force_overwrite: False
+    
   
   - name: copy_forward_translation_valid
     executor:
@@ -62,6 +69,9 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft.parquet
         to_template: output/__HASH__/data/sft_translation.parquet
+
+    force_overwrite: False
+    
 
   - name: generate_sft_dataset_reverse_translation
     executor:
@@ -73,6 +83,9 @@ stages:
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
 
+    force_overwrite: False
+    
+
   - name: copy_reverse_translation
     executor:
       path: utils/io_utils.py
@@ -80,6 +93,9 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft_train.parquet
         to_template: output/__HASH__/data/sft_backtranslation_train.parquet
+
+    force_overwrite: False
+    
   
   - name: copy_reverse_translation_valid
     executor:
@@ -89,11 +105,17 @@ stages:
         from_template: output/__HASH__/data/sft.parquet
         to_template: output/__HASH__/data/sft_backtranslation.parquet
 
+    force_overwrite: False
+    
+
   - name: generate_sft_dataset_cot
     executor:
       path: speaking/encoded_cot_runner.py
       function_name: generate_sft_dataset
       function_kwargs: {}
+
+    force_overwrite: False
+    
 
 
   - name: copy_cot_reasoning
@@ -104,6 +126,9 @@ stages:
         from_template: output/__HASH__/data/sft_train.parquet
         to_template: output/__HASH__/data/sft_cot_train.parquet
 
+    force_overwrite: False
+    
+
 
   - name: copy_cot_reasoning_valid
     executor:
@@ -112,6 +137,9 @@ stages:
       function_kwargs:
         from_template: output/__HASH__/data/sft.parquet
         to_template: output/__HASH__/data/sft_cot.parquet
+
+    force_overwrite: False
+    
 
   - name: combine_sft_files
     executor:
@@ -124,6 +152,9 @@ stages:
         backtranslation_path: output/__HASH__/data/sft_backtranslation_train.parquet
         cot_path: output/__HASH__/data/sft_cot_train.parquet
 
+    force_overwrite: False
+    
+
   - name: combine_sft_files_valid
     executor:
       path: utils/io_utils.py
@@ -135,37 +166,58 @@ stages:
         backtranslation_path: output/__HASH__/data/sft_backtranslation.parquet
         cot_path: output/__HASH__/data/sft_cot.parquet
 
+    force_overwrite: False
+    
+
   - name: count_sft_tokens
     executor:
       path: utils/io_utils.py
       function_name: write_token_count
       function_kwargs: {}
 
-  - name: generate_ground_truth_translation_math500_cot
+    force_overwrite: False
+    
+
+  - name: generate_ground_truth_translation_zebra_cot
     executor:
       path: speaking/encoded_cot_runner.py
       function_name: generate_ground_truth_translation
       function_kwargs:
-        dataset_override: prm800k_test_raw
+        dataset_override: zebra_bench_raw
         validation_set_frac_override: 0.0
 
-  - name: sft_model
-    executor:
-      path: sft/sft_runner.py
-      function_name: sft_model
-      function_kwargs: {}
+    force_overwrite: False
+    
 
-  - name: generate_math500_cot
+  - name: generate_fewshot_prompt
     executor:
       path: speaking/encoded_cot_runner.py
-      function_name: generate_prompted_translation
+      function_name: generate_fewshot_prompt
       function_kwargs: {}
 
-  - name: evaluate_math_accuracy
+    force_overwrite: False
+    
+
+  - name: generate_zebra_cot
     executor:
-      path: evaluation/metrics/math_accuracy.py
-      function_name: evaluate_math_accuracy
+      path: speaking/encoded_cot_runner.py
+      function_name: generate_openai_prompted_translation
+      function_kwargs:
+        user_prompt_suffix_override: "You have 8000 output tokens to think in. Do not exceed this amount of tokens."
+
+    force_overwrite: False
+    
+
+  # TODO
+  - name: evaluate_zebra_accuracy
+    executor:
+      path: evaluation/metrics/zebra_accuracy.py
+      function_name: evaluate_zebra_accuracy
       function_kwargs: {}
+
+    force_overwrite: False
+
+    
 
   - name: judge_cot_style_adherence
     executor:
@@ -173,14 +225,21 @@ stages:
       function_name: judge_cot_style_adherence
       function_kwargs: {}
 
-  - name: generate_math500_reverse_translation
+    force_overwrite: False
+    
+
+  - name: generate_zebra_reverse_translation
     executor:
       path: translation/run_reverse_translation.py
-      function_name: generate_prompted_translation
+      function_name: generate_openai_prompted_translation
       function_kwargs:
         skip_too_long: False
         reference_text_col: raw_translated_cot
         translated_text_col: reference_solution
+
+    force_overwrite: False
+
+    
 
   - name: evaluate_bleu_score
     executor:
@@ -188,9 +247,14 @@ stages:
       function_name: evaluate_bleu_score
       function_kwargs: {}
 
+    force_overwrite: False
+    
+
   - name: combine_all_result_dfs
     executor:
       path: utils/io_utils.py
       function_name: combine_translation_math_cot_dfs
       function_kwargs: {}
 
+    force_overwrite: False
+    

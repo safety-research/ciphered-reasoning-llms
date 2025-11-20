@@ -6,14 +6,10 @@
         "speaking_identity",
         "speaking_zero_shot",
         "speaking_reverse_letters_in_each_word",
-        "speaking_rot13_cipher"
+        "speaking_rot13_cipher",
+        "speaking_base64_2x_cipher"
     ],
     "model_id": [
-        "Qwen/Qwen2.5-14B",
-        "unsloth/Llama-3.1-8B",
-        "unsloth/Meta-Llama-3.1-8B-Instruct"
-    ],
-    "learning_rate": [
-        "2e-5"
+        "claude-sonnet-4-20250514"
     ]
 }

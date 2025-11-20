@@ -9,6 +9,7 @@ from data.designing_data_intensive_applications import (
 from data.prm800k import get_prm800k_cot, get_prm800k_raw
 from data.lmsys_chat_1m import get_lmsys_chat_1m_1_turn_english
 from data.numina_math_cot import get_numina_math_cot_raw
+from data.zebra_bench import get_zebra_bench_raw
 
 
 def get_dataset(dataset_name):
@@ -42,5 +43,7 @@ def get_dataset(dataset_name):
         return get_numina_math_cot_raw().select(range(256000))
     elif dataset_name == "numina_math_cot_512000":
         return get_numina_math_cot_raw().select(range(512000))
+    elif dataset_name == "zebra_bench_raw":
+        return get_zebra_bench_raw()
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")

@@ -1,0 +1,13 @@
+{
+    "encoding_scheme": [
+        "speaking_identity",
+        "speaking_zero_shot",
+        "speaking_letter_to_word_with_dot"
+    ],
+    "model_id": [
+        "unsloth/Llama-3.1-8B"
+    ],
+    "learning_rate": [
+        "2e-5"
+    ]
+}

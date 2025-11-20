@@ -232,6 +232,8 @@ def generate_prompted_translation(config):
     from prompts import get_translation_prompt
     from utils.vllm import kill_vllm_process
 
+    os.environ['VLLM_USE_FLASHINFER_SAMPLER'] = '0'
+
     experiment_hash = compute_experiment_hash(config)
 
     ground_truth_translation = pd.read_parquet(
@@ -361,6 +363,8 @@ def judge_cot_style_adherence(config):
     from prompts import get_translation_prompt
     from utils.vllm import kill_vllm_process
 
+    os.environ['VLLM_USE_FLASHINFER_SAMPLER'] = '0'
+
     experiment_hash = compute_experiment_hash(config)
 
     generated_cot_path = os.path.join(
@@ -459,6 +463,8 @@ def judge_cot_encoding_English_coherence(config):
     from prompts.translation.judge import coherent_english_judge
     from encoding_schemes import get_inverse_encoding_scheme
     from utils.vllm import kill_vllm_process
+
+    os.environ['VLLM_USE_FLASHINFER_SAMPLER'] = '0'
 
     experiment_hash = compute_experiment_hash(config)
 
